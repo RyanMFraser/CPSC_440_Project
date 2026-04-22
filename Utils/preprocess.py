@@ -31,8 +31,13 @@ def preprocess_data():
     # Keep only Name-Club pairings with more than 50 shots.
     pair_counts = combined_data.groupby(["Name", "Club"])["Club"].transform("size")
     combined_data = combined_data[pair_counts > 50].reset_index(drop=True)
+
+    # Enforce expected schema types for downstream analysis.
+    combined_data["Name"] = combined_data["Name"].astype(str)
+    combined_data["Club"] = combined_data["Club"].astype(str)
+    combined_data["X"] = pd.to_numeric(combined_data["X"], errors="coerce").astype(float)
+    combined_data["Y"] = pd.to_numeric(combined_data["Y"], errors="coerce").astype(float)
+
     print(f"Combined dataset shape: {combined_data.shape}")
 
     return combined_data
-
-preprocess_data()
