@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 from pathlib import Path
 
 
@@ -31,7 +32,13 @@ class Hole:
 
         output_dir = Path(__file__).resolve().parent / "HoleRendering"
         output_dir.mkdir(parents=True, exist_ok=True)
-        fig.savefig(output_dir / "hole.png", bbox_inches="tight")
+        output_path = output_dir / "hole.png"
+        fig.savefig(output_path, bbox_inches="tight")
+
+        # Flip the saved raster so it aligns with imshow(..., origin="lower")
+        # when the PNG is used as a background image in the notebook.
+        rendered = plt.imread(output_path)
+        plt.imsave(output_path, np.flipud(rendered))
 
         return fig, ax
 

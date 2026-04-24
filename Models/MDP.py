@@ -138,8 +138,7 @@ class GolfHoleMDP:
     
     def _process_landing_vectorized(self, x_start, y_start, landings):
         """
-        OPTIMIZATION: Process multiple landings in vectorized batches where possible.
-        Returns list of (reward, next_state) tuples.
+        Process multiple landings with consistent terminal state handling.
         """
         stroke_penalty = -1
         results = []
@@ -158,26 +157,66 @@ class GolfHoleMDP:
             
             if oob_mask[i]:
                 reward -= 2
-                next_state = self._snap_to_grid(x_start, y_start)
+                next_state = (x_start, y_start) 
             elif (self._ball_hits_component(x_start, y_start, x_end, y_end, 'tree') or 
-                  self._ball_lands_on_component(x_end, y_end, 'tree')):
+                self._ball_lands_on_component(x_end, y_end, 'tree')):
                 reward -= 2
-                next_state = self._snap_to_grid(x_start, y_start)
+                next_state = (x_start, y_start)
             elif self._ball_lands_on_component(x_end, y_end, 'bunker'):
                 reward -= 2
                 next_state = self._snap_to_grid(x_end, y_end)
             elif self._ball_lands_on_component(x_end, y_end, 'water'):
                 reward -= 1
                 next_state = self._snap_to_grid(x_start, y_start)
-            elif self._ball_lands_on_component(x_end, y_end, 'pin'):
-                next_state = tuple(self.pin_location)
             else:
-                next_state = self._snap_to_grid(x_end, y_end)
+                # Calculate distance to pin
+                pin_distance = np.linalg.norm(np.array([x_end, y_end]) - self.pin_location)
+                
+                # Terminal state: ball is close enough to hole
+                if pin_distance < 7.0:
+                    # No additional penalty - they holed it
+                    next_state = self._get_terminal_state()  # Use canonical terminal state
+                # On green but not in hole (within 30 yards): assume 2-putt
+                elif self._ball_lands_on_component(x_end, y_end, 'green') or pin_distance < 30:
+                    reward -= 2  # This shot + 2 more putts = -3 total
+                    next_state = self._get_terminal_state()
+                # Close but not on green (30-50 yards): assume chip + 2-putt  
+                elif pin_distance < 50:
+                    reward -= 3  # This shot + chip + 2 putts = -4 total
+                    next_state = self._get_terminal_state()
+                # Normal landing on fairway
+                else:
+                    next_state = self._snap_to_grid(x_end, y_end)
             
             results.append((reward, next_state))
         
         return results
-    
+
+    def _get_terminal_state(self):
+        """
+        Return the canonical terminal state.
+        This ensures all paths to completion go to the SAME state.
+        """
+        # Use a state that will definitely pass is_terminal_state() check
+        return tuple(self.pin_location)
+
+    def is_terminal_state(self, state):
+        """
+        Check if state is terminal (ball is holed).
+        A state is terminal if it's at the pin location.
+        """
+        if state not in self._terminal_state_cache:
+            # Terminal = exactly at pin location (where we teleport completed balls)
+            self._terminal_state_cache[state] = (
+                state[0] == self.pin_location[0] and 
+                state[1] == self.pin_location[1]
+            )
+        return self._terminal_state_cache[state]
+
+    def _is_at_hole(self, x, y):
+        """Check if position is at the hole (used during landing processing)."""
+        return np.linalg.norm(np.array([x, y]) - self.pin_location) < 30
+        
     def step(self, state, action, num_samples=100):
         """
         Execute one step with optimized processing.
@@ -205,37 +244,56 @@ class GolfHoleMDP:
         expected_reward = total_reward / num_samples
         
         return expected_reward, next_state_dist
+        
+
     
-    def is_terminal_state(self, state):
-        """Check terminal state with caching."""
-        if state not in self._terminal_state_cache:
-            self._terminal_state_cache[state] = len(
-                self._ball_lands_on_component(state[0], state[1], 'pin')
-            ) > 0
-        return self._terminal_state_cache[state]
     
-    def get_possible_actions(self, state, num_angle_samples=12):
+    def get_possible_actions(self, state, num_angle_samples=5):
         """
-        OPTIMIZATION: Generate actions more efficiently.
-        Consider caching if called repeatedly for same state.
+        Generate sensible actions aimed toward the hole.
         """
         actions = []
         x, y = state
         
-        # Pre-compute angles once
-        angles = np.linspace(0, 2 * np.pi, num_angle_samples, endpoint=False)
-        aim_distance = 80
+        # Vector to pin
+        to_pin = self.pin_location - np.array([x, y])
+        dist_to_pin = np.linalg.norm(to_pin)
+        
+        # Don't generate actions if already at pin
+        if dist_to_pin < 1e-6:
+            return actions
+        
+        # Base direction toward pin
+        pin_direction = to_pin / dist_to_pin
+        pin_angle = np.arctan2(pin_direction[1], pin_direction[0])
         
         for club_idx in range(self.num_clubs):
-            # Add direct shot to pin
-            actions.append((club_idx, self.pin_location[0], self.pin_location[1]))
+            # Action 1: Aim directly at pin
+            actions.append((
+                club_idx, 
+                float(self.pin_location[0]), 
+                float(self.pin_location[1])
+            ))
             
-            # Add angled shots
-            target_xs = x + aim_distance * np.cos(angles)
-            target_ys = y + aim_distance * np.sin(angles)
+            # Actions 2-N: Aim at angles around the pin direction
+            # Use smaller spread for accuracy
+            angle_spread = np.pi / 8  # ±22.5 degrees
+            angle_offsets = np.linspace(-angle_spread, angle_spread, num_angle_samples)
             
-            for tx, ty in zip(target_xs, target_ys):
-                actions.append((club_idx, float(tx), float(ty)))
+            for offset in angle_offsets:
+                angle = pin_angle + offset
+                
+                # Aim point at some distance in this direction
+                # Use distance to pin as aim distance (or cap it)
+                aim_dist = min(dist_to_pin * 1.2, 150)  # Don't aim too far past
+                
+                target_x = x + aim_dist * np.cos(angle)
+                target_y = y + aim_dist * np.sin(angle)
+                
+                # Only add if target is reasonable (forward progress toward pin)
+                target_to_pin = np.linalg.norm(self.pin_location - np.array([target_x, target_y]))
+                if target_to_pin < dist_to_pin * 1.5:  # Don't aim way past the pin
+                    actions.append((club_idx, float(target_x), float(target_y)))
         
         return actions
     
