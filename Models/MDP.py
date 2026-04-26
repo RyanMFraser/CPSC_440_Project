@@ -18,45 +18,6 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 from Simulation.golfhole import Hole
 
 
-class DeterministicClub:
-    """Deterministic club that shoots up to max_distance yards."""
-    
-    def __init__(self, max_distance):
-        self.max_distance = max_distance
-    
-    def sample(self, target_dir, target_dist, num_samples=1):
-        """
-        Returns landing positions given target direction and distance.
-        Shoots either max_distance OR target_dist, whichever is shorter.
-        
-        Args:
-            target_dir: (dx, dy) normalized direction vector
-            target_dist: Distance to target
-            num_samples: Number of samples (all identical for deterministic)
-        
-        Returns:
-            Array of shape (num_samples, 2) with landing offsets
-        """
-        
-        offset = np.array(target_dir) * self.max_distance
-        return np.tile(offset, (num_samples, 1))
-
-
-class PerfectShortClub:
-    """Club that lands exactly on target if target is within max_distance."""
-    
-    def __init__(self, max_distance=50):
-        self.max_distance = max_distance
-    
-    def sample(self, target_dir, target_dist, num_samples=1):
-        """Same as before - this one was correct."""
-        if target_dist <= self.max_distance:
-            offset = np.array(target_dir) * target_dist
-        else:
-            offset = np.array(target_dir) * self.max_distance
-        return np.tile(offset, (num_samples, 1))
-
-
 class GolfHoleMDP:
     """
     GPU-accelerated MDP for simplified golf hole.
@@ -181,14 +142,25 @@ class GolfHoleMDP:
         
         if target_dist < 1e-6:
             target_dir = np.array([0, 1])
-            target_dist = 0
         else:
             target_dir = target_vec / target_dist
         
-        # Pass target_dist to ALL clubs
-        offsets = club.sample(target_dir, target_dist, num_samples)
+        # Sample from GMM (returns tuple of (samples, labels))
+        samples, _ = club.sample(n_samples=num_samples)
         
-        landings = np.array([x_start, y_start]) + offsets
+        # Transform samples to world coordinates
+        # GMM samples are [lateral_offset, distance] in club's coordinate system
+        perp_dir = np.array([-target_dir[1], target_dir[0]])
+        
+        # Extract lateral and distance components
+        laterals = samples[:, 0][:, np.newaxis]
+        distances = samples[:, 1][:, np.newaxis]
+        
+        # Compute landing positions
+        start_pos = np.array([x_start, y_start])
+        offsets = distances * target_dir + laterals * perp_dir
+        
+        landings = start_pos + offsets
         
         next_states = {}
         total_reward = 0
