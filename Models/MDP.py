@@ -1,19 +1,12 @@
 """
-Optimized Markov Decision Process for golf hole simulation.
-
-Key optimizations:
-- Precompute and cache shot samples for all (state, action) pairs
-- Vectorize collision/hazard detection
-- Cache terminal states and action spaces
-- Use numpy operations instead of loops where possible
+Simplified GPU-accelerated Markov Decision Process for golf hole simulation.
+Uses PyTorch for GPU computation of value iteration.
 """
 
 import numpy as np
+import torch
 from pathlib import Path
 import sys
-import time
-from functools import lru_cache
-from collections import defaultdict
 
 try:
     from tqdm.auto import tqdm
@@ -22,375 +15,354 @@ except ImportError:
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from Simulation.holecomponent import HoleComponent
 from Simulation.golfhole import Hole
-from Models.GaussianMixture import gaussian_mixture_model
+
+
+class DeterministicClub:
+    """Deterministic club that shoots up to max_distance yards."""
+    
+    def __init__(self, max_distance):
+        self.max_distance = max_distance
+    
+    def sample(self, target_dir, target_dist, num_samples=1):
+        """
+        Returns landing positions given target direction and distance.
+        Shoots either max_distance OR target_dist, whichever is shorter.
+        
+        Args:
+            target_dir: (dx, dy) normalized direction vector
+            target_dist: Distance to target
+            num_samples: Number of samples (all identical for deterministic)
+        
+        Returns:
+            Array of shape (num_samples, 2) with landing offsets
+        """
+        
+        offset = np.array(target_dir) * self.max_distance
+        return np.tile(offset, (num_samples, 1))
+
+
+class PerfectShortClub:
+    """Club that lands exactly on target if target is within max_distance."""
+    
+    def __init__(self, max_distance=50):
+        self.max_distance = max_distance
+    
+    def sample(self, target_dir, target_dist, num_samples=1):
+        """Same as before - this one was correct."""
+        if target_dist <= self.max_distance:
+            offset = np.array(target_dir) * target_dist
+        else:
+            offset = np.array(target_dir) * self.max_distance
+        return np.tile(offset, (num_samples, 1))
 
 
 class GolfHoleMDP:
-    """Optimized MDP for golf hole play."""
+    """
+    GPU-accelerated MDP for simplified golf hole.
     
-    def __init__(self, hole, gmm_list):
+    Goal: Get within 20 yards of pin
+    Penalty: -1 per stroke
+    Out of bounds: Return to original position, -1 stroke
+    """
+    
+    def __init__(self, hole, clubs, grid_step=10, device=None):
+        """
+        Args:
+            hole: Hole object with pin_location, tee_location, x (width), y (depth)
+            clubs: List of club objects with sample() method
+            grid_step: Discretization grid size in yards
+            device: PyTorch device ('cuda', 'cpu', or None for auto)
+        """
         self.hole = hole
-        self.gmm_list = gmm_list
-        self.num_clubs = len(gmm_list)
-        self.pin_location = np.array(hole.pin_location)
-        self.tee_location = np.array(hole.tee_location)
+        self.clubs = clubs
+        self.num_clubs = len(clubs)
+        self.grid_step = grid_step
         
-        self.hole_width = hole.x
-        self.hole_depth = hole.y
-        self.x_min = -self.hole_width / 2
-        self.x_max = self.hole_width / 2
+        self.pin_location = np.array(hole.pin_location, dtype=np.float32)
+        self.tee_location = np.array(hole.tee_location, dtype=np.float32)
+        
+        self.x_min = -hole.x / 2
+        self.x_max = hole.x / 2
         self.y_min = 0
-        self.y_max = self.hole_depth
-        self.grid_step = 10
+        self.y_max = hole.y
         
-        # Precompute components by type for faster lookup
-        self._component_cache = {}
-        for comp_type in ['tree', 'water', 'bunker', 'green', 'pin']:
-            self._component_cache[comp_type] = self._find_component_by_type(comp_type)
+        self.terminal_radius = 20.0
         
-        # Cache for precomputed samples
-        self._sample_cache = {}
+        if device is None:
+            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            self.device = torch.device(device)
         
-        # Cache for terminal states
-        self._terminal_state_cache = {}
+        print(f"Using device: {self.device}")
         
-        # Precompute all discrete states
         state_grid_x = np.arange(self.x_min, self.x_max + 1e-9, self.grid_step)
         state_grid_y = np.arange(self.y_min, self.y_max + 1e-9, self.grid_step)
-        self.all_states = [(float(x), float(y)) for x in state_grid_x for y in state_grid_y]
         
-        print(f"Initialized MDP with {len(self.all_states)} discrete states")
-
+        self.grid_x = state_grid_x
+        self.grid_y = state_grid_y
+        
+        states_list = [(float(x), float(y)) for x in state_grid_x for y in state_grid_y]
+        self.states = states_list
+        self.num_states = len(states_list)
+        
+        self.state_to_idx = {state: i for i, state in enumerate(states_list)}
+        
+        self.states_tensor = torch.tensor(
+            [[s[0], s[1]] for s in states_list], 
+            dtype=torch.float32, 
+            device=self.device
+        )
+        self.pin_tensor = torch.tensor(self.pin_location, dtype=torch.float32, device=self.device)
+        
+        print(f"Initialized MDP: {self.num_states} states, {self.num_clubs} clubs")
+    
     def _snap_to_grid(self, x, y):
         gx = round((x - self.x_min) / self.grid_step) * self.grid_step + self.x_min
         gy = round((y - self.y_min) / self.grid_step) * self.grid_step + self.y_min
         return (float(gx), float(gy))
     
-    def _find_component_by_type(self, comp_type):
-        return [comp for comp in self.hole.components if comp.type == comp_type]
-    
     def _is_out_of_bounds(self, x, y):
         return x < self.x_min or x > self.x_max or y < self.y_min or y > self.y_max
     
-    def _ball_hits_component(self, x_start, y_start, x_end, y_end, comp_type):
-        components = self._component_cache.get(comp_type, [])
-        hit_components = []
-        for comp in components:
-            if comp.intersects_segment(x_start, y_start, x_end, y_end):
-                hit_components.append(comp)
-        return hit_components
-
-    def _ball_lands_on_component(self, x_end, y_end, comp_type):
-        components = self._component_cache.get(comp_type, [])
-        landed_components = []
-        for comp in components:
-            if comp.contains(x_end, y_end):
-                landed_components.append(comp)
-        return landed_components
+    def is_terminal(self, state):
+        """Check if state is within terminal radius of pin."""
+        dist = np.linalg.norm(np.array(state) - self.pin_location)
+        return dist <= self.terminal_radius
     
-    def _get_sample_cache_key(self, x_start, y_start, club_index, target_x, target_y, num_samples):
-        """Create hashable cache key for shot samples."""
-        return (
-            round(x_start, 2), round(y_start, 2),
-            club_index,
-            round(target_x, 2), round(target_y, 2),
-            num_samples
-        )
-    
-    def _sample_shot(self, x_start, y_start, club_index, target_x, target_y, num_samples=100):
+    def get_actions(self, state):
         """
-        Sample shot trajectories with caching.
-        OPTIMIZATION: Cache results to avoid re-sampling identical shots.
+        Generate actions for a state.
+        Returns list of (club_idx, target_x, target_y) tuples.
         """
-        cache_key = self._get_sample_cache_key(x_start, y_start, club_index, target_x, target_y, num_samples)
-        
-        if cache_key in self._sample_cache:
-            return self._sample_cache[cache_key]
-        
-        gmm = self.gmm_list[club_index]
-        samples = gmm.sample(num_samples)[0]
-        
-        target_dir = np.array([target_x - x_start, target_y - y_start])
-        target_dist = np.linalg.norm(target_dir)
-        
-        if target_dist < 1e-6:
-            target_dir = np.array([0, 1])
-        else:
-            target_dir = target_dir / target_dist
-        
-        # Vectorized computation of all landings
-        perp_dir = np.array([-target_dir[1], target_dir[0]])
-        start_pos = np.array([x_start, y_start])
-        
-        # Compute all landings at once using broadcasting
-        distances = samples[:, 1][:, np.newaxis]  # Shape (num_samples, 1)
-        laterals = samples[:, 0][:, np.newaxis]   # Shape (num_samples, 1)
-        
-        landings = (start_pos + 
-                   distances * target_dir + 
-                   laterals * perp_dir)
-        
-        result = [(float(x), float(y)) for x, y in landings]
-        self._sample_cache[cache_key] = result
-        return result
-    
-    def _process_landing_vectorized(self, x_start, y_start, landings):
-        """
-        Process multiple landings with consistent terminal state handling.
-        """
-        stroke_penalty = -1
-        results = []
-        
-        # Convert to numpy arrays for vectorized operations
-        landings_array = np.array(landings)
-        x_ends = landings_array[:, 0]
-        y_ends = landings_array[:, 1]
-        
-        # Vectorized out-of-bounds check
-        oob_mask = ((x_ends < self.x_min) | (x_ends > self.x_max) | 
-                    (y_ends < self.y_min) | (y_ends > self.y_max))
-        
-        for i, (x_end, y_end) in enumerate(landings):
-            reward = stroke_penalty
-            
-            if oob_mask[i]:
-                reward -= 2
-                next_state = (x_start, y_start) 
-            elif (self._ball_hits_component(x_start, y_start, x_end, y_end, 'tree') or 
-                self._ball_lands_on_component(x_end, y_end, 'tree')):
-                reward -= 2
-                next_state = (x_start, y_start)
-            elif self._ball_lands_on_component(x_end, y_end, 'bunker'):
-                reward -= 2
-                next_state = self._snap_to_grid(x_end, y_end)
-            elif self._ball_lands_on_component(x_end, y_end, 'water'):
-                reward -= 1
-                next_state = self._snap_to_grid(x_start, y_start)
-            else:
-                # Calculate distance to pin
-                pin_distance = np.linalg.norm(np.array([x_end, y_end]) - self.pin_location)
-                
-                # Terminal state: ball is close enough to hole
-                if pin_distance < 7.0:
-                    # No additional penalty - they holed it
-                    next_state = self._get_terminal_state()  # Use canonical terminal state
-                # On green but not in hole (within 30 yards): assume 2-putt
-                elif self._ball_lands_on_component(x_end, y_end, 'green') or pin_distance < 30:
-                    reward -= 2  # This shot + 2 more putts = -3 total
-                    next_state = self._get_terminal_state()
-                # Close but not on green (30-50 yards): assume chip + 2-putt  
-                elif pin_distance < 50:
-                    reward -= 3  # This shot + chip + 2 putts = -4 total
-                    next_state = self._get_terminal_state()
-                # Normal landing on fairway
-                else:
-                    next_state = self._snap_to_grid(x_end, y_end)
-            
-            results.append((reward, next_state))
-        
-        return results
-
-    def _get_terminal_state(self):
-        """
-        Return the canonical terminal state.
-        This ensures all paths to completion go to the SAME state.
-        """
-        # Use a state that will definitely pass is_terminal_state() check
-        return tuple(self.pin_location)
-
-    def is_terminal_state(self, state):
-        """
-        Check if state is terminal (ball is holed).
-        A state is terminal if it's at the pin location.
-        """
-        if state not in self._terminal_state_cache:
-            # Terminal = exactly at pin location (where we teleport completed balls)
-            self._terminal_state_cache[state] = (
-                state[0] == self.pin_location[0] and 
-                state[1] == self.pin_location[1]
-            )
-        return self._terminal_state_cache[state]
-
-    def _is_at_hole(self, x, y):
-        """Check if position is at the hole (used during landing processing)."""
-        return np.linalg.norm(np.array([x, y]) - self.pin_location) < 30
-        
-    def step(self, state, action, num_samples=100):
-        """
-        Execute one step with optimized processing.
-        OPTIMIZATION: Vectorize landing processing and cache samples.
-        """
-        x_start, y_start = state
-        club_index, target_x, target_y = action
-        
-        # Get samples (cached if previously computed)
-        landings = self._sample_shot(x_start, y_start, club_index, target_x, target_y, num_samples)
-        
-        # Process landings in vectorized manner
-        landing_results = self._process_landing_vectorized(x_start, y_start, landings)
-        
-        # Accumulate results
-        next_state_dist = defaultdict(int)
-        total_reward = 0
-        
-        for reward, next_state in landing_results:
-            total_reward += reward
-            next_state_dist[next_state] += 1
-        
-        # Normalize to probabilities
-        next_state_dist = {k: v / num_samples for k, v in next_state_dist.items()}
-        expected_reward = total_reward / num_samples
-        
-        return expected_reward, next_state_dist
-        
-
-    
-    
-    def get_possible_actions(self, state, num_angle_samples=5):
-        """
-        Generate sensible actions aimed toward the hole.
-        """
-        actions = []
         x, y = state
         
-        # Vector to pin
+        if self.is_terminal(state):
+            return []
+        
+        actions = []
+        
         to_pin = self.pin_location - np.array([x, y])
         dist_to_pin = np.linalg.norm(to_pin)
         
-        # Don't generate actions if already at pin
         if dist_to_pin < 1e-6:
-            return actions
+            return []
         
-        # Base direction toward pin
-        pin_direction = to_pin / dist_to_pin
-        pin_angle = np.arctan2(pin_direction[1], pin_direction[0])
+        pin_dir = to_pin / dist_to_pin
+        pin_angle = np.arctan2(pin_dir[1], pin_dir[0])
         
         for club_idx in range(self.num_clubs):
-            # Action 1: Aim directly at pin
-            actions.append((
-                club_idx, 
-                float(self.pin_location[0]), 
-                float(self.pin_location[1])
-            ))
+            actions.append((club_idx, self.pin_location[0], self.pin_location[1]))
             
-            # Actions 2-N: Aim at angles around the pin direction
-            # Use smaller spread for accuracy
-            angle_spread = np.pi / 8  # ±22.5 degrees
-            angle_offsets = np.linspace(-angle_spread, angle_spread, num_angle_samples)
-            
-            for offset in angle_offsets:
+            angle_spread = np.pi / 12
+            for offset in np.linspace(-angle_spread, angle_spread, 12):
                 angle = pin_angle + offset
-                
-                # Aim point at some distance in this direction
-                # Use distance to pin as aim distance (or cap it)
-                aim_dist = min(dist_to_pin * 1.2, 150)  # Don't aim too far past
+                aim_dist = min(dist_to_pin * 1.5, 200)
                 
                 target_x = x + aim_dist * np.cos(angle)
                 target_y = y + aim_dist * np.sin(angle)
                 
-                # Only add if target is reasonable (forward progress toward pin)
-                target_to_pin = np.linalg.norm(self.pin_location - np.array([target_x, target_y]))
-                if target_to_pin < dist_to_pin * 1.5:  # Don't aim way past the pin
-                    actions.append((club_idx, float(target_x), float(target_y)))
+                actions.append((club_idx, float(target_x), float(target_y)))
         
         return actions
     
-    def precompute_transitions(self, num_samples=100, show_progress=True):
+   
+    def simulate_shot(self, state, action, num_samples=100):
         """
-        MAJOR OPTIMIZATION: Precompute all state-action transitions before value iteration.
-        This eliminates redundant sampling during VI.
+        Simulate a shot and return next state distribution.
         """
-        print(f"Precomputing transitions for {len(self.all_states)} states...")
-        self._transition_cache = {}
+        x_start, y_start = state
+        club_idx, target_x, target_y = action
         
-        state_iter = self.all_states
-        if show_progress and tqdm is not None:
-            state_iter = tqdm(state_iter, desc="Precomputing transitions", unit="state")
+        club = self.clubs[club_idx]
         
-        for state in state_iter:
-            if self.is_terminal_state(state):
+        target_vec = np.array([target_x - x_start, target_y - y_start])
+        target_dist = np.linalg.norm(target_vec)
+        
+        if target_dist < 1e-6:
+            target_dir = np.array([0, 1])
+            target_dist = 0
+        else:
+            target_dir = target_vec / target_dist
+        
+        # Pass target_dist to ALL clubs
+        offsets = club.sample(target_dir, target_dist, num_samples)
+        
+        landings = np.array([x_start, y_start]) + offsets
+        
+        next_states = {}
+        total_reward = 0
+        
+        for landing in landings:
+            x_end, y_end = landing
+            reward = -1
+            
+            if self._is_out_of_bounds(x_end, y_end):
+                next_state = (x_start, y_start)
+            elif np.linalg.norm(landing - self.pin_location) <= self.terminal_radius:
+                next_state = tuple(self.pin_location)
+            else:
+                next_state = self._snap_to_grid(x_end, y_end)
+            
+            total_reward += reward
+            next_states[next_state] = next_states.get(next_state, 0) + 1
+        
+        next_state_dist = {s: count / num_samples for s, count in next_states.items()}
+        expected_reward = total_reward / num_samples
+        
+        return expected_reward, next_state_dist
+    
+    def build_transition_matrices(self, num_samples=100, show_progress=True):
+        """
+        Build sparse transition matrices for all state-action pairs.
+        Returns tensors on GPU for fast value iteration.
+        
+        Returns:
+            actions_per_state: List of lists of actions for each state
+            rewards: Dict mapping (state_idx, action_idx) -> reward tensor
+            transitions: Dict mapping (state_idx, action_idx) -> (next_state_indices, probabilities)
+        """
+        print("Building transition matrices...")
+        
+        actions_per_state = []
+        rewards = {}
+        transitions = {}
+        
+        state_iter = enumerate(self.states)
+        if show_progress and tqdm:
+            state_iter = tqdm(state_iter, total=self.num_states, desc="Building transitions")
+        
+        for state_idx, state in state_iter:
+            if self.is_terminal(state):
+                actions_per_state.append([])
                 continue
             
-            actions = self.get_possible_actions(state, num_angle_samples=5)
+            actions = self.get_actions(state)
+            actions_per_state.append(actions)
             
-            for action in actions:
-                cache_key = (state, action)
-                expected_reward, next_state_dist = self.step(state, action, num_samples=num_samples)
-                self._transition_cache[cache_key] = (expected_reward, next_state_dist)
+            for action_idx, action in enumerate(actions):
+                reward, next_dist = self.simulate_shot(state, action, num_samples)
+                
+                next_indices = []
+                probs = []
+                
+                for next_state, prob in next_dist.items():
+                    if next_state in self.state_to_idx:
+                        next_indices.append(self.state_to_idx[next_state])
+                        probs.append(prob)
+                
+                rewards[(state_idx, action_idx)] = reward
+                transitions[(state_idx, action_idx)] = (
+                    torch.tensor(next_indices, dtype=torch.long, device=self.device),
+                    torch.tensor(probs, dtype=torch.float32, device=self.device)
+                )
         
-        print(f"Cached {len(self._transition_cache)} state-action transitions")
+        print(f"Built transitions for {self.num_states} states")
+        return actions_per_state, rewards, transitions
     
-    def value_iteration(
-        self,
+    def value_iteration_gpu(
+        self, 
+        actions_per_state, 
+        rewards, 
+        transitions,
         max_iterations=100,
-        discount_factor=0.99,
+        gamma=0.99,
         epsilon=1e-6,
-        show_progress=True,
-        show_state_progress=False,  # Disabled by default since it's slow
-        num_angle_samples=5,
-        num_samples=5,
+        show_progress=True
     ):
         """
-        Optimized value iteration using precomputed transitions.
+        GPU-accelerated value iteration.
+        
+        Args:
+            actions_per_state: Output from build_transition_matrices
+            rewards: Reward dict from build_transition_matrices
+            transitions: Transition dict from build_transition_matrices
+            max_iterations: Max iterations
+            gamma: Discount factor
+            epsilon: Convergence threshold
+            show_progress: Show progress bar
+        
+        Returns:
+            value_function: Dict mapping states to values
+            policy: Dict mapping states to best actions
         """
-        # Precompute transitions if not already done
-        if not hasattr(self, '_transition_cache'):
-            self.precompute_transitions(num_samples=num_samples, show_progress=show_progress)
+        V = torch.zeros(self.num_states, dtype=torch.float32, device=self.device)
         
-        value_function = {state: 0.0 for state in self.all_states}
+        iter_range = range(max_iterations)
+        if show_progress and tqdm:
+            iter_range = tqdm(iter_range, desc="Value iteration")
         
-        iteration_iterable = range(max_iterations)
-        if show_progress and tqdm is not None:
-            iteration_iterable = tqdm(iteration_iterable, desc="Value iteration", unit="iter")
-        
-        for iteration in iteration_iterable:
-            max_diff = 0.0
+        for iteration in iter_range:
+            V_old = V.clone()
+            max_delta = 0.0
             
-            for state in self.all_states:
-                if self.is_terminal_state(state):
+            for state_idx in range(self.num_states):
+                if not actions_per_state[state_idx]:
                     continue
                 
-                old_value = value_function[state]
-                best_value = float('inf')
+                action_values = []
                 
-                actions = self.get_possible_actions(state, num_angle_samples=num_angle_samples)
+                for action_idx in range(len(actions_per_state[state_idx])):
+                    r = rewards[(state_idx, action_idx)]
+                    next_indices, probs = transitions[(state_idx, action_idx)]
+                    
+                    next_values = V_old[next_indices]
+                    expected_next_value = torch.sum(probs * next_values).item()
+                    
+                    q_value = r + gamma * expected_next_value
+                    action_values.append(q_value)
                 
-                for action in actions:
-                    cache_key = (state, action)
-                    
-                    if cache_key in self._transition_cache:
-                        expected_reward, next_state_dist = self._transition_cache[cache_key]
-                    else:
-                        # Fallback if not cached (shouldn't happen after precompute)
-                        expected_reward, next_state_dist = self.step(state, action, num_samples=num_samples)
-                    
-                    # Expected value of next states
-                    next_value = sum(prob * value_function.get(next_state, 0.0) 
-                                    for next_state, prob in next_state_dist.items())
-                    
-                    action_value = expected_reward + discount_factor * next_value
-                    best_value = min(best_value, action_value)
-                
-                value_function[state] = best_value
-                max_diff = max(max_diff, abs(value_function[state] - old_value))
+                if action_values:
+                    V[state_idx] = max(action_values)
             
-            if show_progress and tqdm is not None and hasattr(iteration_iterable, "set_postfix"):
-                iteration_iterable.set_postfix({"max_diff": f"{max_diff:.3g}"})
+            delta = torch.max(torch.abs(V - V_old)).item()
+            max_delta = delta
             
-            if max_diff < epsilon:
-                if show_progress:
-                    print(f"\nValue iteration converged after {iteration + 1} iterations")
+            if show_progress and tqdm and hasattr(iter_range, 'set_postfix'):
+                iter_range.set_postfix({'delta': f'{delta:.6f}'})
+            
+            if delta < epsilon:
+                print(f"\nConverged after {iteration + 1} iterations")
                 break
         
-        return value_function
-    
-    def _find_nearest_state(self, position, state_list):
-        if not state_list:
-            return position
+        value_function = {self.states[i]: V[i].item() for i in range(self.num_states)}
         
-        position = np.array(position)
-        distances = [np.linalg.norm(np.array(s) - position) for s in state_list]
-        nearest_idx = np.argmin(distances)
-        return state_list[nearest_idx]
+        policy = {}
+        for state_idx in range(self.num_states):
+            state = self.states[state_idx]
+            
+            if not actions_per_state[state_idx]:
+                policy[state] = None
+                continue
+            
+            best_action = None
+            best_value = float('-inf')  # ← Start at negative infinity
+
+            for action_idx, action in enumerate(actions_per_state[state_idx]):
+                r = rewards[(state_idx, action_idx)]
+                next_indices, probs = transitions[(state_idx, action_idx)]
+                next_values = V[next_indices]
+                expected_next_value = torch.sum(probs * next_values).item()
+                q_value = r + gamma * expected_next_value
+                
+                if q_value > best_value:
+                    best_value = q_value
+                    best_action = action
+
+            policy[state] = best_action
+        
+        return value_function, policy
+    
+    def solve(self, num_samples=100, max_iterations=100, gamma=0.99, epsilon=1e-6):
+        """
+        Complete solve: build transitions and run value iteration.
+        
+        Returns:
+            (value_function, policy)
+        """
+        actions, rewards, transitions = self.build_transition_matrices(num_samples)
+        value_function, policy = self.value_iteration_gpu(
+            actions, rewards, transitions, max_iterations, gamma, epsilon
+        )
+        
+        return value_function, policy
