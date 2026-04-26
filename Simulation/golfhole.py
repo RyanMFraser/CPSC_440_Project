@@ -1,15 +1,15 @@
 import matplotlib.pyplot as plt
-import numpy as np
 from pathlib import Path
 
 
 class Hole:
-    def __init__(self, size, components, pin_location, tee_location=None):
+    def __init__(self, size, components, pin_location, tee_location=None, name = None):
         self.x = size[0]
         self.y = size[1]
         self.components = components
         self.pin_location = pin_location
         self.tee_location = tee_location
+        self.name = name
 
 
     def draw(self):
@@ -30,15 +30,11 @@ class Hole:
         ax.set_ylim(0, self.y)
         ax.set_aspect("equal", adjustable="box")
 
-        output_dir = Path(__file__).resolve().parent / "HoleRendering"
+        output_dir = Path(__file__).resolve().parents[1] / "Output" / "Holes"
         output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir / "hole.png"
+        hole_name = str(self.name) if self.name else "hole"
+        output_path = output_dir / f"{hole_name}.png"
         fig.savefig(output_path, bbox_inches="tight")
-
-        # Flip the saved raster so it aligns with imshow(..., origin="lower")
-        # when the PNG is used as a background image in the notebook.
-        rendered = plt.imread(output_path)
-        plt.imsave(output_path, np.flipud(rendered))
 
         return fig, ax
 

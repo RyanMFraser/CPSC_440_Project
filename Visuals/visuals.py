@@ -33,27 +33,24 @@ def draw_ellipse(mean, cov, ax, color):
     ax.add_patch(ellipse)
 
 
-def plot_gmm_dispersion(gmms, best_idx, data, name):
-    """Save GMM dispersion plots for all models and the best selected model.
+def plot_gmm_dispersion(gmm, data, name):
+    """Save GMM dispersion plots for a single fitted model.
 
     Args:
-        gmms (list): List of fitted sklearn GaussianMixture models.
-        best_idx (int): Index of the best model in gmms.
+        gmm: A fitted sklearn GaussianMixture model.
         data (DataFrame): Data containing X and Y columns used for plotting.
         name (str): Golfer name; outputs are saved under Visuals/<name>/.
     """
-    if not gmms:
-        raise ValueError("gmms must contain at least one fitted model.")
-    if best_idx < 0 or best_idx >= len(gmms):
-        raise IndexError("best_idx is out of range for gmms.")
+    if gmm is None:
+        raise ValueError("gmm must be a fitted GaussianMixture model.")
 
     features = data[["X", "Y"]]
 
     output_dir = Path(__file__).resolve().parent / str(name)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Plot 1: One panel per GMM, sized by number of models.
-    n_models = len(gmms)
+    # Plot 1: One panel for the provided GMM.
+    n_models = 1
     n_cols = min(4, n_models)
     n_rows = int(np.ceil(n_models / n_cols))
     fig, axes = plt.subplots(
@@ -65,9 +62,9 @@ def plot_gmm_dispersion(gmms, best_idx, data, name):
     )
     axes = np.atleast_1d(axes).flatten()
 
-    for i, gmm in enumerate(gmms):
+    for i, model in enumerate([gmm]):
         ax = axes[i]
-        n_components = gmm.n_components
+        n_components = model.n_components
 
         ax.scatter(
             features["X"],
@@ -80,10 +77,10 @@ def plot_gmm_dispersion(gmms, best_idx, data, name):
         colors = plt.cm.get_cmap("tab10", n_components)
         for j in range(n_components):
             color = colors(j)
-            draw_ellipse(gmm.means_[j], gmm.covariances_[j], ax=ax, color=color)
+            draw_ellipse(model.means_[j], model.covariances_[j], ax=ax, color=color)
             ax.scatter(
-                gmm.means_[j, 0],
-                gmm.means_[j, 1],
+                model.means_[j, 0],
+                model.means_[j, 1],
                 color=color,
                 marker="x",
                 s=90,
@@ -105,8 +102,8 @@ def plot_gmm_dispersion(gmms, best_idx, data, name):
     fig.savefig(output_dir / "gmm_all_models.png", dpi=200, bbox_inches="tight")
     plt.close(fig)
 
-    # Plot 2: Best model only.
-    best_gmm = gmms[best_idx]
+    # Plot 2: Same model in a dedicated single-model view.
+    best_gmm = gmm
     best_components = best_gmm.n_components
     fig_best, ax_best = plt.subplots(figsize=(8, 6))
 
@@ -132,7 +129,7 @@ def plot_gmm_dispersion(gmms, best_idx, data, name):
         )
 
     ax_best.set_title(
-        f"{name} Best GMM (index={best_idx}, components={best_components})"
+        f"{name} GMM (components={best_components})"
     )
     ax_best.set_xlabel("X")
     ax_best.set_ylabel("Y")
@@ -143,19 +140,16 @@ def plot_gmm_dispersion(gmms, best_idx, data, name):
     fig_best.savefig(output_dir / "gmm_best_model.png", dpi=200, bbox_inches="tight")
     plt.close(fig_best)
 
-def plot_gmm_heat(gmms, best_idx, data, name):
+def plot_gmm_heat(gmm, data, name):
     """Save a single best-model GMM density heatmap over the shot scatter.
 
     Args:
-        gmms (list): List of fitted sklearn GaussianMixture models.
-        best_idx (int): Index of the best model in gmms.
+        gmm: A fitted sklearn GaussianMixture model.
         data (DataFrame): Data containing X and Y columns used for plotting.
         name (str): Golfer name; outputs are saved under Visuals/<name>/.
     """
-    if not gmms:
-        raise ValueError("gmms must contain at least one fitted model.")
-    if best_idx < 0 or best_idx >= len(gmms):
-        raise IndexError("best_idx is out of range for gmms.")
+    if gmm is None:
+        raise ValueError("gmm must be a fitted GaussianMixture model.")
 
     features = data[["X", "Y"]].copy()
     x = features["X"].to_numpy()
@@ -164,15 +158,13 @@ def plot_gmm_heat(gmms, best_idx, data, name):
     output_dir = Path(__file__).resolve().parent / str(name)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    best_gmm = gmms[best_idx]
-
     # Build a dense grid over the observed data range and evaluate model density.
     x_grid = np.linspace(X_MIN, X_MAX, 250)
     y_grid = np.linspace(Y_MIN, Y_MAX, 250)
     xx, yy = np.meshgrid(x_grid, y_grid)
     grid_points = np.column_stack([xx.ravel(), yy.ravel()])
 
-    log_density = best_gmm.score_samples(grid_points)
+    log_density = gmm.score_samples(grid_points)
     density = np.exp(log_density).reshape(xx.shape)
 
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -206,7 +198,7 @@ def plot_gmm_heat(gmms, best_idx, data, name):
     cbar.set_label("GMM density")
 
     ax.set_title(
-        f"{name} Best GMM Density Heatmap (index={best_idx}, components={best_gmm.n_components})"
+        f"{name} Best GMM Density Heatmap (components={gmm.n_components})"
     )
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
@@ -217,22 +209,17 @@ def plot_gmm_heat(gmms, best_idx, data, name):
     fig.savefig(output_dir / "gmm_best_model_heat.png", dpi=200, bbox_inches="tight")
     plt.close(fig)
 
-def plot_gmm_samples(gmms, best_idx, data, name, n_samples=100, include_idx0_panel=False):
+def plot_gmm_samples(gmm, data, name, n_samples=100):
     """Save a sample-comparison figure from fitted GMM models.
 
     Args:
-        gmms (list): List of fitted sklearn GaussianMixture models.
-        best_idx (int): Index of the best model in gmms.
+        gmm: A fitted sklearn GaussianMixture model.
         data (DataFrame): Data containing X and Y columns used for plotting.
         name (str): Golfer name; outputs are saved under Visuals/<name>/.
-        n_samples (int): Number of points to sample from the best GMM.
-        include_idx0_panel (bool): If True, add a third subplot that shows
-            samples from gmms[0] in the same figure.
+        n_samples (int): Number of points to sample from the GMM.
     """
-    if not gmms:
-        raise ValueError("gmms must contain at least one fitted model.")
-    if best_idx < 0 or best_idx >= len(gmms):
-        raise IndexError("best_idx is out of range for gmms.")
+    if gmm is None:
+        raise ValueError("gmm must be a fitted GaussianMixture model.")
 
     features = data[["X", "Y"]].copy()
     x = features["X"].to_numpy()
@@ -241,16 +228,10 @@ def plot_gmm_samples(gmms, best_idx, data, name, n_samples=100, include_idx0_pan
     output_dir = Path(__file__).resolve().parent / str(name)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    best_gmm = gmms[best_idx]
-    sampled_points, _ = best_gmm.sample(n_samples)
+    sampled_points, _ = gmm.sample(n_samples)
 
-    if include_idx0_panel:
-        idx0_points, _ = gmms[0].sample(n_samples)
-        fig, axes = plt.subplots(1, 3, figsize=(18, 6), sharex=True, sharey=True)
-        ax_data, ax_samples, ax_idx0 = axes
-    else:
-        fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharex=True, sharey=True)
-        ax_data, ax_samples = axes
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharex=True, sharey=True)
+    ax_data, ax_samples = axes
 
     ax_data.scatter(
         x,
@@ -272,22 +253,9 @@ def plot_gmm_samples(gmms, best_idx, data, name, n_samples=100, include_idx0_pan
         edgecolors="white",
         linewidths=0.3,
     )
-    ax_samples.set_title(f"{name} GMM Samples (index={best_idx}, n={n_samples})")
+    ax_samples.set_title(f"{name} GMM Samples (n={n_samples})")
 
-    if include_idx0_panel:
-        ax_idx0.scatter(
-            idx0_points[:, 0],
-            idx0_points[:, 1],
-            s=20,
-            alpha=0.7,
-            color="tab:green",
-            edgecolors="white",
-            linewidths=0.3,
-        )
-        ax_idx0.set_title(f"{name} GMM Samples (index=0, n={n_samples})")
-        axes_to_format = (ax_data, ax_samples, ax_idx0)
-    else:
-        axes_to_format = (ax_data, ax_samples)
+    axes_to_format = (ax_data, ax_samples)
 
     for ax in axes_to_format:
         ax.set_xlabel("X")
@@ -296,16 +264,7 @@ def plot_gmm_samples(gmms, best_idx, data, name, n_samples=100, include_idx0_pan
         ax.set_ylim(Y_MIN, Y_MAX)
         ax.grid(alpha=0.15)
 
-    title_text = f"{name} Data vs. Best GMM Samples"
-    if include_idx0_panel:
-        title_text = f"{name} Data vs. GMM Samples (best index and index 0)"
-
-    fig.suptitle(title_text, fontsize=16)
+    fig.suptitle(f"{name} Data vs. Best GMM Samples", fontsize=16)
     fig.tight_layout(rect=[0, 0, 1, 0.95])
-    if include_idx0_panel:
-        fig.savefig(output_dir / "gmm_best_model_samples_with_idx0.png", dpi=200, bbox_inches="tight")
-    elif best_idx == 0:
-        fig.savefig(output_dir / "gmm_best_model_samples_1comp.png", dpi=200, bbox_inches="tight")
-    else:
-        fig.savefig(output_dir / "gmm_best_model_samples.png", dpi=200, bbox_inches="tight")
+    fig.savefig(output_dir / "gmm_best_model_samples.png", dpi=200, bbox_inches="tight")
     plt.close(fig)
