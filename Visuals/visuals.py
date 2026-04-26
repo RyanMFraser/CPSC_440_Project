@@ -217,8 +217,8 @@ def plot_gmm_heat(gmms, best_idx, data, name):
     fig.savefig(output_dir / "gmm_best_model_heat.png", dpi=200, bbox_inches="tight")
     plt.close(fig)
 
-def plot_gmm_samples(gmms, best_idx, data, name, n_samples=100):
-    """Save a two-panel figure showing data and GMM samples from the best model.
+def plot_gmm_samples(gmms, best_idx, data, name, n_samples=100, include_idx0_panel=False):
+    """Save a sample-comparison figure from fitted GMM models.
 
     Args:
         gmms (list): List of fitted sklearn GaussianMixture models.
@@ -226,6 +226,8 @@ def plot_gmm_samples(gmms, best_idx, data, name, n_samples=100):
         data (DataFrame): Data containing X and Y columns used for plotting.
         name (str): Golfer name; outputs are saved under Visuals/<name>/.
         n_samples (int): Number of points to sample from the best GMM.
+        include_idx0_panel (bool): If True, add a third subplot that shows
+            samples from gmms[0] in the same figure.
     """
     if not gmms:
         raise ValueError("gmms must contain at least one fitted model.")
@@ -242,7 +244,13 @@ def plot_gmm_samples(gmms, best_idx, data, name, n_samples=100):
     best_gmm = gmms[best_idx]
     sampled_points, _ = best_gmm.sample(n_samples)
 
-    fig, (ax_data, ax_samples) = plt.subplots(1, 2, figsize=(14, 6), sharex=True, sharey=True)
+    if include_idx0_panel:
+        idx0_points, _ = gmms[0].sample(n_samples)
+        fig, axes = plt.subplots(1, 3, figsize=(18, 6), sharex=True, sharey=True)
+        ax_data, ax_samples, ax_idx0 = axes
+    else:
+        fig, axes = plt.subplots(1, 2, figsize=(14, 6), sharex=True, sharey=True)
+        ax_data, ax_samples = axes
 
     ax_data.scatter(
         x,
@@ -266,16 +274,37 @@ def plot_gmm_samples(gmms, best_idx, data, name, n_samples=100):
     )
     ax_samples.set_title(f"{name} GMM Samples (index={best_idx}, n={n_samples})")
 
-    for ax in (ax_data, ax_samples):
+    if include_idx0_panel:
+        ax_idx0.scatter(
+            idx0_points[:, 0],
+            idx0_points[:, 1],
+            s=20,
+            alpha=0.7,
+            color="tab:green",
+            edgecolors="white",
+            linewidths=0.3,
+        )
+        ax_idx0.set_title(f"{name} GMM Samples (index=0, n={n_samples})")
+        axes_to_format = (ax_data, ax_samples, ax_idx0)
+    else:
+        axes_to_format = (ax_data, ax_samples)
+
+    for ax in axes_to_format:
         ax.set_xlabel("X")
         ax.set_ylabel("Y")
         ax.set_xlim(X_MIN, X_MAX)
         ax.set_ylim(Y_MIN, Y_MAX)
         ax.grid(alpha=0.15)
 
-    fig.suptitle(f"{name} Data vs. Best GMM Samples", fontsize=16)
+    title_text = f"{name} Data vs. Best GMM Samples"
+    if include_idx0_panel:
+        title_text = f"{name} Data vs. GMM Samples (best index and index 0)"
+
+    fig.suptitle(title_text, fontsize=16)
     fig.tight_layout(rect=[0, 0, 1, 0.95])
-    if best_idx == 0:
+    if include_idx0_panel:
+        fig.savefig(output_dir / "gmm_best_model_samples_with_idx0.png", dpi=200, bbox_inches="tight")
+    elif best_idx == 0:
         fig.savefig(output_dir / "gmm_best_model_samples_1comp.png", dpi=200, bbox_inches="tight")
     else:
         fig.savefig(output_dir / "gmm_best_model_samples.png", dpi=200, bbox_inches="tight")
