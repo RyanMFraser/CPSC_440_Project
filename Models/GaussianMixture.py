@@ -55,3 +55,8 @@ class GaussianMixtureModel:
             "means": self.gmm.means_,
             "covariances": self.gmm.covariances_
         }
+    
+    def sample(self, n_samples=100):
+        if self.gmm is None:
+            raise ValueError("Model has not been fitted yet.")
+        return self.gmm.sample(n_samples=n_samples)
