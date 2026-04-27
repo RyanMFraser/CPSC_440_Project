@@ -1,0 +1,26 @@
+{
+  "id": "universal_wedge",
+  "max_components": 1,
+  "num_components": 1,
+  "weights": [
+    1.0
+  ],
+  "means": [
+    [
+      0,
+      15
+    ]
+  ],
+  "covariances": [
+    [
+      [
+        2,
+        0
+      ],
+      [
+        0,
+        2
+      ]
+    ]
+  ]
+}
