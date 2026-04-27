@@ -6,7 +6,7 @@ import pandas as pd
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "Data"
+DATA_DIR = BASE_DIR / "Persistence" / "Data"
 
 
 def load_data(id):
@@ -37,7 +37,7 @@ def _validate_rows(data):
     if len(data) < 1:
         raise ValueError("data must contain at least one row.")
 
-    required_fields = {"X", "Y", "Name", "Club"}
+    required_fields = {"X", "Y", "Club"}
     for idx, row in enumerate(data):
         if not isinstance(row, dict):
             raise ValueError(f"Each row must be an object. Invalid row at index {idx}.")

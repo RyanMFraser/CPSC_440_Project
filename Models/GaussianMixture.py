@@ -1,6 +1,14 @@
+import json
+from pathlib import Path
+
+import numpy as np
 from sklearn.mixture import GaussianMixture
 from Models.EneryDistance import gmm_energy_distance
 from sklearn.model_selection import train_test_split
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+MODEL_DIR = BASE_DIR / "Persistence" / "Models"
 
 class GaussianMixtureModel:
     def __init__(self, max_components = 10, num_components = None):
@@ -62,3 +70,63 @@ class GaussianMixtureModel:
         if self.gmm is None:
             raise ValueError("Model has not been fitted yet.")
         return self.gmm.sample(n_samples=n_samples)
+
+    def save(self, id, overwrite=True):
+        if self.gmm is None:
+            raise ValueError("Model has not been fitted yet.")
+
+        file_path = MODEL_DIR / f"{id}.json"
+        if file_path.exists() and not overwrite:
+            raise FileExistsError(f"Model file already exists: {file_path}")
+
+        payload = {
+            "id": id,
+            "max_components": int(self.max_components),
+            "num_components": int(self.num_components),
+            "weights": self.gmm.weights_.tolist(),
+            "means": self.gmm.means_.tolist(),
+            "covariances": self.gmm.covariances_.tolist(),
+        }
+
+        MODEL_DIR.mkdir(parents=True, exist_ok=True)
+        with file_path.open("w", encoding="utf-8") as json_file:
+            json.dump(payload, json_file, indent=2)
+
+    def load(self, id):
+        file_path = MODEL_DIR / f"{id}.json"
+        if not file_path.exists():
+            raise FileNotFoundError(f"Model file not found: {file_path}")
+
+        with file_path.open("r", encoding="utf-8") as json_file:
+            payload = json.load(json_file)
+
+        self.max_components = int(payload["max_components"])
+        self.num_components = int(payload["num_components"])
+
+        weights = np.asarray(payload["weights"], dtype=float)
+        means = np.asarray(payload["means"], dtype=float)
+        covariances = np.asarray(payload["covariances"], dtype=float)
+
+        if means.ndim != 2:
+            raise ValueError("Loaded means must be a 2D array.")
+
+        n_components, n_features = means.shape
+        gmm = GaussianMixture(n_components=n_components, covariance_type="full", random_state=42)
+        gmm.weights_ = weights
+        gmm.means_ = means
+        gmm.covariances_ = covariances
+
+        # Reconstruct precision cholesky used by sklearn internals.
+        precisions_cholesky = []
+        for covariance in covariances:
+            cov_cholesky = np.linalg.cholesky(covariance)
+            precision_cholesky = np.linalg.inv(cov_cholesky).T
+            precisions_cholesky.append(precision_cholesky)
+
+        gmm.precisions_cholesky_ = np.asarray(precisions_cholesky)
+        gmm.n_features_in_ = n_features
+        gmm.converged_ = True
+        gmm.n_iter_ = 0
+        gmm.lower_bound_ = float("nan")
+
+        self.gmm = gmm

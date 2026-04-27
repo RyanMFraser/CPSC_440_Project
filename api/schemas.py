@@ -4,20 +4,14 @@ from pydantic import BaseModel, Field
 
 
 class GMMFitRequest(BaseModel):
-    name: str = Field(..., min_length=1, description="Golfer name to filter on")
-    club: str = Field(..., min_length=1, description="Club to filter on, e.g. I7")
     max_components: int = Field(10, ge=1, le=25)
     num_components: Optional[int] = Field(None, ge=1, le=25)
+    id: str = Field(..., min_length=1, description="Dataset id to load for fitting the GMM")
 
 
 class GMMFitResponse(BaseModel):
-    name: str
-    club: str
-    n_rows: int
-    num_components: int
-    weights: list[float]
-    means: list[list[float]]
-    covariances: list[list[list[float]]]
+    n_models: int
+    model_ids: list[str]
 
 
 class MDPSolveRequest(BaseModel):

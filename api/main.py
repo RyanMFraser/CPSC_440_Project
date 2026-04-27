@@ -4,7 +4,7 @@ from Models.GaussianMixture import GaussianMixtureModel
 from Models.MDP import GolfHoleMDP
 from Simulation.golfhole import Hole
 from Simulation.holecomponent import HoleComponent
-from Utils.DataManager import save_data
+from Utils.DataManager import save_data, load_data
 
 from .schemas import (
     DataUploadRequest,
@@ -65,40 +65,39 @@ def upload_data(request: DataUploadRequest) -> DataUploadResponse:
 
 @app.post("/gmm/fit", response_model=GMMFitResponse)
 def fit_gmm(request: GMMFitRequest) -> GMMFitResponse:
-    data = load_data("project_data")
+    data = load_data(request.id)
 
-    filtered = data[
-        (data["Name"] == request.name) &
-        (data["Club"] == request.club)
-    ]
-
-    if filtered.empty:
+    if data.empty:
         raise HTTPException(
             status_code=404,
-            detail=f"No rows found for name={request.name} and club={request.club}",
+            detail=f"No data found for id={request.id}",
         )
-
-    model = GaussianMixtureModel(
-        max_components=request.max_components,
-        num_components=request.num_components,
-    )
-    try:
-        model.fit(filtered)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
     
+    ids = []
 
-    params = model.get_parameters()
+    for club in data["Club"].unique():
+        if not isinstance(club, str):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid club value in data: {club}. All club values must be strings.",
+            )
+        club_data = data[data["Club"] == club]
+
+        model = GaussianMixtureModel(
+            max_components=request.max_components,
+            num_components=request.num_components,
+        )
+        try:
+            model.fit(club_data)
+            model.save(id=f"{request.id}_{club}", overwrite=True)
+            ids.append(f"{request.id}_{club}")
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
 
     return GMMFitResponse(
-        name=request.name,
-        club=request.club,
-        n_rows=int(len(filtered)),
-        num_components=int(model.num_components),
-        weights=params["weights"].tolist(),
-        means=params["means"].tolist(),
-        covariances=params["covariances"].tolist(),
+        n_models=int(len(ids)),
+        model_ids = ids
     )
 
 
