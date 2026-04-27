@@ -53,4 +53,33 @@ class GMMSampleRequest(BaseModel):
 class GMMSampleResponse(BaseModel):
     gmm_id: str
     samples: list[list[float]]
-    
+
+class MDPPolicyRequest(BaseModel):
+    mdp_id: str = Field(
+        "Ryan_MDP",
+        min_length=1,
+        description="ID of the MDP solution to retrieve the policy for",
+        examples=["Ryan_MDP"],
+    )
+    state: dict = Field(
+        default_factory=lambda: {"x": 0.0, "y": 25.0},
+        description="Current position on the hole. Must include numeric 'x' and 'y'.",
+        examples=[{"x": 0.0, "y": 25.0}],
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "mdp_id": "Ryan_MDP",
+                "state": {
+                    "x": 0.0,
+                    "y": 25.0,
+                },
+            }
+        }
+    }
+
+class MDPPolicyResponse(BaseModel):
+    mdp_id: str
+    policy: Optional[dict] = None
+    state: dict  

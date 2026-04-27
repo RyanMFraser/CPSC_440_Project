@@ -15,7 +15,9 @@ from .schemas import (
     MDPSolveRequest,
     MDPSolveResponse,
     GMMSampleRequest,
-    GMMSampleResponse
+    GMMSampleResponse,
+    MDPPolicyRequest,
+    MDPPolicyResponse
 )
 
 
@@ -136,4 +138,33 @@ def sample_gmm(request: GMMSampleRequest) -> GMMSampleResponse:
     return GMMSampleResponse(
         gmm_id=request.gmm_id,
         samples=sample_points.tolist(),
+    )
+
+@app.post("/mdp/policy")
+def get_mdp_policy(request: MDPPolicyRequest) -> MDPPolicyResponse:
+    if "x" not in request.state or "y" not in request.state:
+        raise HTTPException(status_code=400, detail="state must include both 'x' and 'y'.")
+
+    state = (float(request.state["x"]), float(request.state["y"]))
+
+    # Load from persisted policy; hole and clubs are not used for policy lookup.
+    mdp = GolfHoleMDP(_build_hole(), [], grid_step=10, device="cpu")
+    mdp.load(request.mdp_id)
+    try:
+        action = mdp.get_policy_for_state(state)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    policy = None
+    if action is not None:
+        policy = {
+            "club_idx": int(action[0]),
+            "target_x": float(action[1]),
+            "target_y": float(action[2]),
+        }
+
+    return MDPPolicyResponse(
+        mdp_id=request.mdp_id,
+        policy=policy,
+        state={"x": state[0], "y": state[1]},
     )

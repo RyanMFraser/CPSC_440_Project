@@ -18,6 +18,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from Models.GaussianMixture import GaussianMixtureModel
 from Simulation.golfhole import Hole
+from Simulation.HoleSetUp.hole_simple import create_hole
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -33,7 +34,7 @@ class GolfHoleMDP:
     Out of bounds: Return to original position, -1 stroke
     """
     
-    def __init__(self, hole, club_ids, grid_step=10, device=None):
+    def __init__(self, hole = None, club_ids = [], grid_step=10, device=None):
         """
         Args:
             hole: Hole object with pin_location, tee_location, x (width), y (depth)
@@ -41,6 +42,9 @@ class GolfHoleMDP:
             grid_step: Discretization grid size in yards
             device: PyTorch device ('cuda', 'cpu', or None for auto)
         """
+        if hole is None:
+            hole = create_hole()
+
         self.hole = hole
         self.club_ids = club_ids
         self.num_clubs = len(club_ids)
@@ -119,7 +123,7 @@ class GolfHoleMDP:
         Returns list of (club_idx, target_x, target_y) tuples.
         """
         x, y = state
-        
+
         if self.is_terminal(state):
             return []
         
@@ -441,3 +445,12 @@ class GolfHoleMDP:
         self.policy = loaded_policy
 
         return self
+    
+    def get_policy_for_state(self, state):
+        x, y = state
+        if x % self.grid_step != 0 or y % self.grid_step != 0:
+            raise ValueError(f"State ({x}, {y}) is not on the grid. Must be multiples of grid_step {self.grid_step}.")
+        
+        if self.policy is None:
+            raise ValueError("Policy not available. Solve the MDP first.")
+        return self.policy.get(state, None)
