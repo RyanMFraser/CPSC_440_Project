@@ -14,6 +14,8 @@ from .schemas import (
     MDPActionResponse,
     MDPSolveRequest,
     MDPSolveResponse,
+    GMMSampleRequest,
+    GMMSampleResponse
 )
 
 
@@ -49,14 +51,14 @@ def health() -> dict[str, str]:
 @app.post("/data/upload", response_model=DataUploadResponse)
 def upload_data(request: DataUploadRequest) -> DataUploadResponse:
     try:
-        save_data(request.id, request.rows, request.write_mode)
+        save_data(request.gmm_id, request.rows, request.write_mode)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save data: {e}")
 
     return DataUploadResponse(
-        id=request.id,
+        gmm_id=request.gmm_id,
         write_mode=request.write_mode,
         saved_rows=len(request.rows),
         message="Data saved successfully.",
@@ -65,12 +67,12 @@ def upload_data(request: DataUploadRequest) -> DataUploadResponse:
 
 @app.post("/gmm/fit", response_model=GMMFitResponse)
 def fit_gmm(request: GMMFitRequest) -> GMMFitResponse:
-    data = load_data(request.id)
+    data = load_data(request.gmm_id)
 
     if data.empty:
         raise HTTPException(
             status_code=404,
-            detail=f"No data found for id={request.id}",
+            detail=f"No data found for id={request.gmm_id}",
         )
     
     ids = []
@@ -89,23 +91,23 @@ def fit_gmm(request: GMMFitRequest) -> GMMFitResponse:
         )
         try:
             model.fit(club_data)
-            model.save(id=f"{request.id}_{club}", overwrite=True)
-            ids.append(f"{request.id}_{club}")
+            model.save(id=f"{request.gmm_id}_{club}", overwrite=True)
+            ids.append(f"{request.gmm_id}_{club}")
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
 
     return GMMFitResponse(
         n_models=int(len(ids)),
-        model_ids = ids
+        gmm_ids = ids
     )
 
 
 @app.post("/mdp/solve", response_model=MDPSolveResponse)
 def solve_mdp(request: MDPSolveRequest) -> MDPSolveResponse:
-    club_models = request.models_list
+    club_models = request.gmm_ids
     if not club_models:
-        raise HTTPException(status_code=400, detail="models_list cannot be empty")
+        raise HTTPException(status_code=400, detail="gmm_ids cannot be empty")
     
     
 
@@ -114,12 +116,24 @@ def solve_mdp(request: MDPSolveRequest) -> MDPSolveResponse:
     try:
         mdp = GolfHoleMDP(hole, club_models, grid_step=10, device="cpu")
         mdp.solve(num_samples=100, max_iterations=50, gamma=0.98)
-        mdp.save(request.id, overwrite=True)
+        mdp.save(request.mdp_id, overwrite=True)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"MDP solve failed: {e}")
     
 
     return MDPSolveResponse(
-        id = request.id,
-        club_ids=club_models,
+        mdp_id = request.mdp_id,
+        gmm_ids=club_models,
+    )
+
+@app.post("/gmm/sample", response_model=GMMSampleResponse)
+def sample_gmm(request: GMMSampleRequest) -> GMMSampleResponse:
+    model = GaussianMixtureModel()
+    model.load(request.gmm_id)
+
+    sample_points, _ = model.sample(n_samples=request.n_samples)
+
+    return GMMSampleResponse(
+        gmm_id=request.gmm_id,
+        samples=sample_points.tolist(),
     )

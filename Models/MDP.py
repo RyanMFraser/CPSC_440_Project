@@ -44,7 +44,7 @@ class GolfHoleMDP:
         self.hole = hole
         self.club_ids = club_ids
         self.num_clubs = len(club_ids)
-        self.clubs = [GaussianMixtureModel().load(cid) for cid in club_ids]
+        self.clubs = self.setup_clubs(club_ids)
         self.grid_step = grid_step
         
         self.pin_location = np.array(hole.pin_location, dtype=np.float32)
@@ -87,6 +87,18 @@ class GolfHoleMDP:
         self.policy = None
         
         print(f"Initialized MDP: {self.num_states} states, {self.num_clubs} clubs")
+
+    def setup_clubs(self, club_ids):
+        clubs = []
+        print(f"Loading club models: {club_ids}")
+        for club_id in club_ids:
+            try:
+                club = GaussianMixtureModel()
+                club.load(club_id)
+                clubs.append(club)
+            except FileNotFoundError:
+                raise FileNotFoundError(f"Club model not found for id: {club_id}")
+        return clubs
     
     def _snap_to_grid(self, x, y):
         gx = round((x - self.x_min) / self.grid_step) * self.grid_step + self.x_min
