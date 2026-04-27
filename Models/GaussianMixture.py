@@ -8,6 +8,8 @@ class GaussianMixtureModel:
         self.num_components = num_components
         self.gmm = None
 
+    
+
     def fit(self, data):
         if not hasattr(data, "columns") or not {"X", "Y"}.issubset(data.columns):
             raise ValueError("Input data must contain 'X' and 'Y' columns.")
