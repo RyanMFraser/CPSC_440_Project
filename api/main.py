@@ -24,21 +24,21 @@ app = FastAPI(
 )
 
 
-def _build_hole(hole_name: str) -> Hole:
-    if hole_name == "simple":
-        return Hole(
-            size=(300, 400),
-            components=[
-                HoleComponent(center=(0, 350), semi_major_axis=40, semi_minor_axis=30, rotation=-25, comp_type="green"),
-                HoleComponent(center=(0, 25), semi_major_axis=15, semi_minor_axis=15, rotation=0, comp_type="tee"),
-                HoleComponent(center=(0, 350), semi_major_axis=3, semi_minor_axis=3, rotation=0, comp_type="pin"),
-            ],
-            pin_location=(0, 350),
-            tee_location=(0, 25),
-            name="hole_simple",
-        )
+def _build_hole() -> Hole:
+    
+    return Hole(
+        size=(300, 400),
+        components=[
+            HoleComponent(center=(0, 350), semi_major_axis=40, semi_minor_axis=30, rotation=-25, comp_type="green"),
+            HoleComponent(center=(0, 25), semi_major_axis=15, semi_minor_axis=15, rotation=0, comp_type="tee"),
+            HoleComponent(center=(0, 350), semi_major_axis=3, semi_minor_axis=3, rotation=0, comp_type="pin"),
+        ],
+        pin_location=(0, 350),
+        tee_location=(0, 25),
+        name="hole_simple",
+    )
 
-    raise HTTPException(status_code=400, detail=f"Unsupported hole_name: {hole_name}")
+    
 
 
 @app.get("/health")
@@ -103,48 +103,23 @@ def fit_gmm(request: GMMFitRequest) -> GMMFitResponse:
 
 @app.post("/mdp/solve", response_model=MDPSolveResponse)
 def solve_mdp(request: MDPSolveRequest) -> MDPSolveResponse:
-    data = preprocess_data()
+    club_models = request.models_list
+    if not club_models:
+        raise HTTPException(status_code=400, detail="models_list cannot be empty")
+    
+    
 
-    fitted_clubs = []
-    used_clubs = []
-
-    player_df = data[data["Name"] == request.name].copy()
-
-    if player_df.empty:
-        raise HTTPException(
-                status_code=404,
-                detail=f"No rows found for name={request.name}",
-            )
-
-    for club, club_df in sorted(player_df.groupby("Club"), key=lambda x: x[0]):
-
-        model = GaussianMixtureModel(
-            max_components=request.gmm_components,
-            num_components=request.gmm_components,
-        )
-
-        try:
-            model.fit(club_df)
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-
-        fitted_clubs.append(model)
-        used_clubs.append(club)
-
-    hole = _build_hole(request.hole_type)
+    hole = _build_hole()
 
     try:
-        mdp = GolfHoleMDP(hole, fitted_clubs, grid_step=10, device="cpu")
-
-        value_function, policy = mdp.solve(num_samples=100, max_iterations=50, gamma=0.98)
+        mdp = GolfHoleMDP(hole, club_models, grid_step=10, device="cpu")
+        mdp.solve(num_samples=100, max_iterations=50, gamma=0.98)
+        mdp.save(request.id, overwrite=True)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"MDP solve failed: {e}")
     
 
     return MDPSolveResponse(
-        name=request.name,
-        hole_type=request.hole_type,
-        clubs=used_clubs,
-        value_function=value_function.tolist() if value_function is not None else None,
-        policy=[MDPActionResponse(club=used_clubs[action["club_index"]], target_x=action["target"][0], target_y=action["target"][1]) for action in policy] if policy is not None else None,
+        id = request.id,
+        club_ids=club_models,
     )

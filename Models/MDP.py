@@ -5,6 +5,7 @@ Uses PyTorch for GPU computation of value iteration.
 
 import numpy as np
 import torch
+import json
 from pathlib import Path
 import sys
 
@@ -15,7 +16,12 @@ except ImportError:
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+from Models.GaussianMixture import GaussianMixtureModel
 from Simulation.golfhole import Hole
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+MDP_DIR = BASE_DIR / "Persistence" / "MDP"
 
 
 class GolfHoleMDP:
@@ -27,17 +33,18 @@ class GolfHoleMDP:
     Out of bounds: Return to original position, -1 stroke
     """
     
-    def __init__(self, hole, clubs, grid_step=10, device=None):
+    def __init__(self, hole, club_ids, grid_step=10, device=None):
         """
         Args:
             hole: Hole object with pin_location, tee_location, x (width), y (depth)
-            clubs: List of club objects with sample() method
+            club_ids: List of club IDs
             grid_step: Discretization grid size in yards
             device: PyTorch device ('cuda', 'cpu', or None for auto)
         """
         self.hole = hole
-        self.clubs = clubs
-        self.num_clubs = len(clubs)
+        self.club_ids = club_ids
+        self.num_clubs = len(club_ids)
+        self.clubs = [GaussianMixtureModel().load(cid) for cid in club_ids]
         self.grid_step = grid_step
         
         self.pin_location = np.array(hole.pin_location, dtype=np.float32)
@@ -75,6 +82,9 @@ class GolfHoleMDP:
             device=self.device
         )
         self.pin_tensor = torch.tensor(self.pin_location, dtype=torch.float32, device=self.device)
+
+        self.value_function = None
+        self.policy = None
         
         print(f"Initialized MDP: {self.num_states} states, {self.num_clubs} clubs")
     
@@ -336,5 +346,86 @@ class GolfHoleMDP:
         value_function, policy = self.value_iteration_gpu(
             actions, rewards, transitions, max_iterations, gamma, epsilon
         )
-        
+        self.value_function = value_function
+        self.policy = policy
         return value_function, policy
+    
+    def save(self, id, overwrite=True):
+        if self.value_function is None or self.policy is None:
+            raise ValueError("MDP must be solved before saving. value_function and policy cannot be None.")
+
+        file_path = MDP_DIR / f"{id}.json"
+        if file_path.exists() and not overwrite:
+            raise FileExistsError(f"MDP file already exists: {file_path}")
+
+        value_function_rows = [
+            {
+                "state": [float(state[0]), float(state[1])],
+                "value": float(value),
+            }
+            for state, value in self.value_function.items()
+        ]
+
+        policy_rows = []
+        for state, action in self.policy.items():
+            entry = {"state": [float(state[0]), float(state[1])], "action": None}
+            if action is not None:
+                entry["action"] = {
+                    "club_idx": int(action[0]),
+                    "target_x": float(action[1]),
+                    "target_y": float(action[2]),
+                }
+            policy_rows.append(entry)
+
+        payload = {
+            "id": id,
+            "grid_step": float(self.grid_step),
+            "club_ids": list(self.club_ids),
+            "value_function": value_function_rows,
+            "policy": policy_rows,
+        }
+
+        MDP_DIR.mkdir(parents=True, exist_ok=True)
+        with file_path.open("w", encoding="utf-8") as json_file:
+            json.dump(payload, json_file, indent=2)
+
+        return self
+
+    def load(self, id):
+        file_path = MDP_DIR / f"{id}.json"
+        if not file_path.exists():
+            raise FileNotFoundError(f"MDP file not found: {file_path}")
+
+        with file_path.open("r", encoding="utf-8") as json_file:
+            payload = json.load(json_file)
+
+        if payload.get("id") != id:
+            raise ValueError(f"MDP id mismatch: expected '{id}', found '{payload.get('id')}'.")
+
+        self.grid_step = float(payload["grid_step"])
+        self.club_ids = list(payload["club_ids"])
+        self.num_clubs = len(self.club_ids)
+
+        loaded_value_function = {}
+        for row in payload["value_function"]:
+            state = row["state"]
+            loaded_value_function[(float(state[0]), float(state[1]))] = float(row["value"])
+
+        loaded_policy = {}
+        for row in payload["policy"]:
+            state = row["state"]
+            state_key = (float(state[0]), float(state[1]))
+            action = row["action"]
+            if action is None:
+                loaded_policy[state_key] = None
+            else:
+                loaded_policy[state_key] = (
+                    int(action["club_idx"]),
+                    float(action["target_x"]),
+                    float(action["target_y"]),
+                )
+
+        self.value_function = loaded_value_function
+        self.policy = loaded_policy
+
+        return self

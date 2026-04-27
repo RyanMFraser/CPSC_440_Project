@@ -15,8 +15,8 @@ class GMMFitResponse(BaseModel):
 
 
 class MDPSolveRequest(BaseModel):
-    name: str = Field(..., min_length=1, description="Golfer name to filter on")
-    hole_name: Literal["simple"] = "simple"
+    id: str = Field(..., min_length=1, description="ID for saving the MDP solution output")
+    models_list: list[str] = Field(..., min_length=1, description="List of GMM model ids to load for solving the MDP")
     grid_step: int = Field(10, ge=1, le=50)
 
 
@@ -27,9 +27,8 @@ class MDPActionResponse(BaseModel):
 
 
 class MDPSolveResponse(BaseModel):
-    name: str
-    hole_type: str
-    clubs: list[str]
+    models_list: list[str]
+    id: str
     value_function: Optional[list[float]] = None
     policy: Optional[list[MDPActionResponse]] = None
 
