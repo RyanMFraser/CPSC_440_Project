@@ -54,6 +54,17 @@ class GMMSampleResponse(BaseModel):
     gmm_id: str
     samples: list[list[float]]
 
+
+class GMMSpecRequest(BaseModel):
+    gmm_id: str = Field(..., min_length=1, description="ID of the GMM model to get parameters for")
+
+
+class GMMParamsResponse(BaseModel):
+    gmm_id: str
+    weights: list[float]
+    means: list[list[float]]
+    covariances: list[list[list[float]]]
+
 class MDPPolicyRequest(BaseModel):
     mdp_id: str = Field(
         "Ryan_MDP",
@@ -83,3 +94,23 @@ class MDPPolicyResponse(BaseModel):
     mdp_id: str
     policy: Optional[dict] = None
     state: dict  
+
+
+class MDPValueRequest(BaseModel):
+    mdp_id: str = Field(
+        "Ryan_MDP",
+        min_length=1,
+        description="ID of the MDP solution to retrieve the value for",
+        examples=["Ryan_MDP"],
+    )
+    state: dict = Field(
+        default_factory=lambda: {"x": 0.0, "y": 25.0},
+        description="Current position on the hole. Must include numeric 'x' and 'y'.",
+        examples=[{"x": 0.0, "y": 25.0}],
+    )
+
+
+class MDPValueResponse(BaseModel):
+    mdp_id: str
+    value: Optional[float] = None
+    state: dict

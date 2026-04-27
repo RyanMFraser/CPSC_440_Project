@@ -454,3 +454,12 @@ class GolfHoleMDP:
         if self.policy is None:
             raise ValueError("Policy not available. Solve the MDP first.")
         return self.policy.get(state, None)
+
+    def get_expected_value_for_state(self, state):
+        x, y = state
+        if x % self.grid_step != 0 or y % self.grid_step != 0:
+            raise ValueError(f"State ({x}, {y}) is not on the grid. Must be multiples of grid_step {self.grid_step}.")
+        
+        if self.value_function is None:
+            raise ValueError("Value function not available. Solve the MDP first.")
+        return self.value_function.get(state, None)

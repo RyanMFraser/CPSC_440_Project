@@ -16,8 +16,12 @@ from .schemas import (
     MDPSolveResponse,
     GMMSampleRequest,
     GMMSampleResponse,
+    GMMSpecRequest,
+    GMMParamsResponse,
     MDPPolicyRequest,
-    MDPPolicyResponse
+    MDPPolicyResponse,
+    MDPValueRequest,
+    MDPValueResponse,
 )
 
 
@@ -140,6 +144,28 @@ def sample_gmm(request: GMMSampleRequest) -> GMMSampleResponse:
         samples=sample_points.tolist(),
     )
 
+
+@app.post("/gmm/params", response_model=GMMParamsResponse)
+def get_gmm_params(request: GMMSpecRequest) -> GMMParamsResponse:
+    model = GaussianMixtureModel()
+    try:
+        model.load(request.gmm_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Model not found: {request.gmm_id}")
+
+    params = model.get_parameters()
+
+    weights = params["weights"].tolist()
+    means = params["means"].tolist()
+    covariances = params["covariances"].tolist()
+
+    return GMMParamsResponse(
+        gmm_id=request.gmm_id,
+        weights=weights,
+        means=means,
+        covariances=covariances,
+    )
+
 @app.post("/mdp/policy")
 def get_mdp_policy(request: MDPPolicyRequest) -> MDPPolicyResponse:
     if "x" not in request.state or "y" not in request.state:
@@ -166,5 +192,27 @@ def get_mdp_policy(request: MDPPolicyRequest) -> MDPPolicyResponse:
     return MDPPolicyResponse(
         mdp_id=request.mdp_id,
         policy=policy,
+        state={"x": state[0], "y": state[1]},
+    )
+
+
+@app.post("/mdp/value", response_model=MDPValueResponse)
+def get_mdp_value(request: MDPValueRequest) -> MDPValueResponse:
+    if "x" not in request.state or "y" not in request.state:
+        raise HTTPException(status_code=400, detail="state must include both 'x' and 'y'.")
+
+    state = (float(request.state["x"]), float(request.state["y"]))
+
+    mdp = GolfHoleMDP(_build_hole(), [], grid_step=10, device="cpu")
+    mdp.load(request.mdp_id)
+
+    if mdp.value_function is None:
+        raise HTTPException(status_code=400, detail="Value function not available. Solve the MDP first.")
+
+    value = mdp.value_function.get(state, None)
+
+    return MDPValueResponse(
+        mdp_id=request.mdp_id,
+        value=value,
         state={"x": state[0], "y": state[1]},
     )
