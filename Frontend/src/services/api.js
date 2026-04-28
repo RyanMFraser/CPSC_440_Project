@@ -38,6 +38,10 @@ class APIClient {
     return this.request('/health', { method: 'GET' });
   }
 
+  async getIds() {
+    return this.request('/ids', { method: 'GET' });
+  }
+
   // Example: GET request
   async get(endpoint) {
     return this.request(endpoint, { method: 'GET' });

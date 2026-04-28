@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
 
 from Models.GaussianMixture import GaussianMixtureModel
 from Models.MDP import GolfHoleMDP
@@ -49,6 +50,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+PERSISTENCE_DIR = BASE_DIR / "Persistence"
+DATA_DIR = PERSISTENCE_DIR / "Data"
+MODELS_DIR = PERSISTENCE_DIR / "Models"
+MDP_DIR = PERSISTENCE_DIR / "MDP"
+
 
 def _build_hole() -> Hole:
     
@@ -78,6 +85,24 @@ def root() -> dict[str, str]:
     return {"status": "ok", "message": "CPSC 440 Golf API"}
 
 
+@app.get("/ids")
+def list_persisted_ids() -> dict[str, list[str]]:
+    def list_json_stems(directory: Path) -> list[str]:
+        if not directory.exists():
+            return []
+        return sorted(
+            path.stem
+            for path in directory.glob("*.json")
+            if path.is_file()
+        )
+
+    return {
+        "data_ids": list_json_stems(DATA_DIR),
+        "gmm_ids": list_json_stems(MODELS_DIR),
+        "mdp_ids": list_json_stems(MDP_DIR),
+    }
+
+
 @app.post("/data/upload", response_model=DataUploadResponse)
 def upload_data(request: DataUploadRequest) -> DataUploadResponse:
     try:
@@ -97,12 +122,12 @@ def upload_data(request: DataUploadRequest) -> DataUploadResponse:
 
 @app.post("/gmm/fit", response_model=GMMFitResponse)
 def fit_gmm(request: GMMFitRequest) -> GMMFitResponse:
-    data = load_data(request.gmm_id)
+    data = load_data(request.data_id)
 
     if data.empty:
         raise HTTPException(
             status_code=404,
-            detail=f"No data found for id={request.gmm_id}",
+            detail=f"No data found for id={request.data_id}",
         )
     
     ids = []
@@ -121,8 +146,8 @@ def fit_gmm(request: GMMFitRequest) -> GMMFitResponse:
         )
         try:
             model.fit(club_data)
-            model.save(id=f"{request.gmm_id}_{club}", overwrite=True)
-            ids.append(f"{request.gmm_id}_{club}")
+            model.save(id=f"{request.data_id}_{club}", overwrite=True)
+            ids.append(f"{request.data_id}_{club}")
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 

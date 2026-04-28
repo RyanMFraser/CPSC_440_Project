@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 class GMMFitRequest(BaseModel):
     max_components: int = Field(10, ge=1, le=25)
     num_components: Optional[int] = Field(None, ge=1, le=25)
-    gmm_id: str = Field(..., min_length=1, description="Dataset id to load for fitting the GMM")
+    data_id: str = Field(..., min_length=1, description="Dataset id to load for fitting the GMM")
 
 
 class GMMFitResponse(BaseModel):

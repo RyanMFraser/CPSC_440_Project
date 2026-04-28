@@ -46,6 +46,236 @@ main {
   width: 100%;
 }
 
+.app-main {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.app-main__content {
+  min-width: 0;
+}
+
+.model-sidebar {
+  position: sticky;
+  top: 1rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(31, 41, 55, 0.08);
+  border: 1px solid rgba(102, 126, 234, 0.12);
+  padding: 1rem;
+}
+
+.model-sidebar__header {
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(102, 126, 234, 0.12);
+}
+
+.model-sidebar__header h2 {
+  font-size: 1.15rem;
+  color: #243b53;
+  margin-bottom: 0.35rem;
+}
+
+.model-sidebar__header p {
+  font-size: 0.9rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.model-sidebar__sections {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.sidebar-section {
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+}
+
+.sidebar-section__header {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0.95rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  color: #1f2937;
+  font-weight: 700;
+  text-align: left;
+}
+
+.sidebar-section__header:hover {
+  background: rgba(102, 126, 234, 0.06);
+}
+
+.sidebar-section__title {
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+
+.sidebar-section__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.sidebar-section__chevron {
+  display: inline-block;
+  transition: transform 0.18s ease;
+}
+
+.sidebar-section__chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.sidebar-section__body {
+  padding: 0 1rem 1rem;
+}
+
+.sidebar-section__list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sidebar-section__item {
+  background: #eef4ff;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  color: #1d4ed8;
+  font-size: 0.95rem;
+  word-break: break-word;
+}
+
+.sidebar-section__hint,
+.sidebar-section__error {
+  margin-top: 0.75rem;
+  font-size: 0.92rem;
+}
+
+.sidebar-section__hint {
+  color: #64748b;
+}
+
+.sidebar-section__error {
+  color: #b91c1c;
+}
+
+/* CSV Uploader styles */
+.csv-uploader {
+  background: white;
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.08);
+}
+.csv-uploader__header h2 {
+  margin: 0 0 6px 0;
+  font-size: 1.1rem;
+}
+.csv-uploader__subtitle {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+.csv-uploader__body {
+  margin-top: 0.85rem;
+}
+
+.csv-drop__container {
+  max-width: 820px;
+}
+.csv-drop__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.field-row {
+  display: flex;
+  gap: 12px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 0;
+}
+.field__label {
+  font-weight: 700;
+  color: #243b53;
+  font-size: 0.9rem;
+}
+.field__input,
+.field__select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: #fbfcfe;
+  font-size: 0.95rem;
+  outline: none;
+}
+.field__input:focus,
+.field__select:focus {
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.06);
+  border-color: rgba(102,126,234,0.45);
+}
+
+.csv-drop__area {
+  border: 1px dashed rgba(148, 163, 184, 0.24);
+  border-radius: 12px;
+  padding: 22px;
+  text-align: center;
+  background: #ffffff;
+  cursor: pointer;
+}
+.csv-drop__area.is-dragging {
+  background: #f6fbff;
+  border-color: rgba(102, 126, 234, 0.35);
+}
+.csv-drop__title {
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 1rem;
+}
+.csv-drop__subtitle {
+  color: #64748b;
+  font-size: 0.95rem;
+  margin-top: 4px;
+}
+.csv-drop__hint {
+  margin-top: 8px;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+.csv-drop__status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+.csv-drop__message-text {
+  color: #475569;
+}
+.csv-drop__upload {
+  margin-top: 6px;
+}
+
 section {
   background: white;
   border-radius: 8px;
@@ -112,5 +342,14 @@ footer {
 
   section {
     padding: 1rem;
+  }
+
+  .app-main {
+    grid-template-columns: 1fr;
+  }
+
+  .model-sidebar {
+    position: static;
+    max-height: none;
   }
 }
