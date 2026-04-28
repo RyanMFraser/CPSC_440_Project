@@ -1,2 +1,16 @@
 venv/
 .venv/
+env
+.env
+
+# Frontend (Vite / Node)
+Frontend/node_modules/
+Frontend/dist/
+Frontend/build/
+Frontend/.vite/
+Frontend/.cache/
+Frontend/package-lock.json
+Frontend/yarn.lock
+Frontend/pnpm-lock.yaml
+Frontend/.env*
+Frontend/.DS_Store
