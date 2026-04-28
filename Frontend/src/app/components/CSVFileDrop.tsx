@@ -112,7 +112,7 @@ const CSVFileDrop: React.FC = () => {
   }
 
   return (
-    <div className="csv-drop__container">
+    <div className="csv-drop__container" style={{ width: '100%' }}>
       <div className="csv-drop__form">
         <div className="field-row">
           <label className="field">

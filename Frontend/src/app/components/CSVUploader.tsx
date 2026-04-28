@@ -1,12 +1,15 @@
 import React from 'react'
 import CSVFileDrop from './CSVFileDrop'
+import SectionHeader from './SectionHeader'
 
 const CSVUploader: React.FC = () => {
   return (
     <div className="csv-uploader">
       <header className="csv-uploader__header">
-        <h2>Upload Shot Data</h2>
-        <p className="csv-uploader__subtitle">Import CSV files containing shot data (X, Y, Club)</p>
+        <SectionHeader
+          mainText="Upload Shot Data"
+          subText="Import CSV files containing shot data (X, Y, Club)"
+        />
       </header>
 
       <div className="csv-uploader__body">

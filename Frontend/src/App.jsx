@@ -56,41 +56,12 @@ function App() {
         <ModelSidebar selected={selected} onToggle={toggleSelected} />
 
         <div className="app-main__content">
-          <section className="hero">
-            <h2>Welcome to your React Frontend</h2>
-            <p>Edit <code>src/App.jsx</code> to start building your interface.</p>
-            <p style={{ fontSize: '0.9em', color: '#666', marginTop: '1em' }}>
-              API Base URL: <code>{import.meta.env.VITE_API_URL}</code>
-            </p>
-          </section>
-
-          <section className="getting-started">
-            <h3>Getting Started</h3>
-            <ul>
-              <li>Use the API client from <code>src/services/api.js</code> to call your backend</li>
-              <li>Example: <code>apiClient.get('/endpoint')</code></li>
-              <li>Backend running at: <code>http://localhost:8000</code></li>
-              <li>View backend API docs at: <code>http://localhost:8000/docs</code></li>
-            </ul>
-          </section>
 
           <FrontPage selected={selected} />
 
-          <section className="info">
-            <h3>Useful Commands</h3>
-            <ul>
-              <li><code>npm run dev</code> - Start dev server (port 5173)</li>
-              <li><code>npm run build</code> - Build for production</li>
-              <li><code>npm run lint</code> - Run ESLint</li>
-              <li><code>npm run preview</code> - Preview production build</li>
-            </ul>
-          </section>
         </div>
       </main>
 
-      <footer>
-        <p>Built with React + Vite | Connected to FastAPI Backend</p>
-      </footer>
     </div>
   )
 }
