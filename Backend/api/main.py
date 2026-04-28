@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from Models.GaussianMixture import GaussianMixtureModel
 from Models.MDP import GolfHoleMDP
@@ -31,6 +32,23 @@ app = FastAPI(
     description="API exposing core GMM functionality for golf shot dispersion.",
 )
 
+# Allow the frontend dev server and localhost origins for browser access
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 def _build_hole() -> Hole:
     
@@ -52,6 +70,12 @@ def _build_hole() -> Hole:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/")
+def root() -> dict[str, str]:
+    # Provide a simple root endpoint for health checks and preflight requests
+    return {"status": "ok", "message": "CPSC 440 Golf API"}
 
 
 @app.post("/data/upload", response_model=DataUploadResponse)
