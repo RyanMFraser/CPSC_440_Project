@@ -7,6 +7,9 @@ type CollapsibleListSectionProps = {
   defaultOpen?: boolean
   loading?: boolean
   error?: string | null
+  category?: string
+  selected?: string[]
+  onToggle?: (category: string | undefined, id: string) => void
 }
 
 function CollapsibleListSection({
@@ -16,6 +19,9 @@ function CollapsibleListSection({
   defaultOpen = false,
   loading = false,
   error = null,
+  category,
+  selected = [],
+  onToggle,
 }: CollapsibleListSectionProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen)
 
@@ -43,11 +49,20 @@ function CollapsibleListSection({
           )}
           {!loading && !error && items.length > 0 && (
             <ul className="sidebar-section__list">
-              {items.map((item) => (
-                <li key={item} className="sidebar-section__item">
-                  {item}
-                </li>
-              ))}
+              {items.map((item) => {
+                const isSelected = selected.includes(item)
+                return (
+                  <li key={item} className={`sidebar-section__item ${isSelected ? 'is-selected' : ''}`}>
+                    <button
+                      type="button"
+                      className="sidebar-section__item-button"
+                      onClick={() => onToggle && onToggle(category, item)}
+                    >
+                      {item}
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>

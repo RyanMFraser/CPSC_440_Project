@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import apiClient from './services/api'
 import CSVUploader from './app/components/CSVUploader'
 import ModelSidebar from './app/components/ModelSidebar'
+import FrontPage from './app/components/FrontPage'
 import './App.css'
 
 function App() {
@@ -27,6 +28,18 @@ function App() {
     return () => clearInterval(interval)
   }, [])
 
+  // selection state: allow multiple selections per category
+  const [selected, setSelected] = useState({ data_ids: [], gmm_ids: [], mdp_ids: [] })
+
+  const toggleSelected = (category, id) => {
+    setSelected((prev) => {
+      const prevList = prev[category] ?? []
+      const exists = prevList.includes(id)
+      const nextList = exists ? prevList.filter((x) => x !== id) : [...prevList, id]
+      return { ...prev, [category]: nextList }
+    })
+  }
+
   return (
     <div className="app-container">
       <header>
@@ -40,7 +53,7 @@ function App() {
       </header>
 
       <main className="app-main">
-        <ModelSidebar />
+        <ModelSidebar selected={selected} onToggle={toggleSelected} />
 
         <div className="app-main__content">
           <section className="hero">
@@ -61,7 +74,7 @@ function App() {
             </ul>
           </section>
 
-          <CSVUploader />
+          <FrontPage selected={selected} />
 
           <section className="info">
             <h3>Useful Commands</h3>

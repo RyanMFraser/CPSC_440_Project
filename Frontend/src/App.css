@@ -276,6 +276,43 @@ main {
   margin-top: 6px;
 }
 
+/* Front page layout for uploader + selected items */
+.frontpage-grid {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 1rem;
+  align-items: start;
+}
+.frontpage__left {
+  min-width: 0;
+}
+.frontpage__right {
+  background: white;
+  border-radius: 12px;
+  padding: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.08);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+}
+
+/* Sidebar selected item state */
+.sidebar-section__item.is-selected {
+  background: #dff6e1;
+  border-color: #bfe7b9;
+}
+.sidebar-section__item-button {
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.sidebar-section__item-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.06);
+}
+
 section {
   background: white;
   border-radius: 8px;

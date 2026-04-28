@@ -12,9 +12,13 @@ class APIClient {
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     const headers = {
-      'Content-Type': 'application/json',
       ...options.headers,
     };
+
+    // Only set JSON content type when there is a body to send
+    if (options.body) {
+      headers['Content-Type'] = 'application/json'
+    }
 
     try {
       const response = await fetch(url, {

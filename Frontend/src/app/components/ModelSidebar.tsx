@@ -8,7 +8,12 @@ type IdPayload = {
   mdp_ids?: string[]
 }
 
-function ModelSidebar() {
+type ModelSidebarProps = {
+  selected?: IdPayload
+  onToggle?: (category: keyof IdPayload, id: string) => void
+}
+
+function ModelSidebar({ selected = { data_ids: [], gmm_ids: [], mdp_ids: [] }, onToggle }: ModelSidebarProps) {
   const [ids, setIds] = useState<IdPayload>({ data_ids: [], gmm_ids: [], mdp_ids: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -29,8 +34,26 @@ function ModelSidebar() {
           setError(null)
         }
       } catch (fetchError: any) {
-        if (isMounted) {
-          setError(fetchError?.message ?? 'Failed to load IDs')
+        console.error('apiClient.getIds failed:', fetchError)
+        // Try a direct fetch fallback to get more details / recover
+        try {
+          const base = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+          const res = await fetch(`${base}/ids`, { method: 'GET', mode: 'cors' })
+          if (!res.ok) throw new Error(`Fallback GET failed: ${res.status} ${res.statusText}`)
+          const json = await res.json()
+          if (isMounted) {
+            setIds({
+              data_ids: json.data_ids ?? [],
+              gmm_ids: json.gmm_ids ?? [],
+              mdp_ids: json.mdp_ids ?? [],
+            })
+            setError(null)
+          }
+        } catch (fallbackErr: any) {
+          console.error('Fallback fetch /ids failed:', fallbackErr)
+          if (isMounted) {
+            setError((fetchError && fetchError.message) || (fallbackErr && fallbackErr.message) || 'Failed to load IDs')
+          }
         }
       } finally {
         if (isMounted) {
@@ -56,24 +79,33 @@ function ModelSidebar() {
       <div className="model-sidebar__sections">
         <CollapsibleListSection
           title="data_ids"
+          category="data_ids"
           items={ids.data_ids ?? []}
+          selected={selected.data_ids ?? []}
           count={ids.data_ids?.length ?? 0}
           loading={loading}
           error={error}
+          onToggle={(cat, id) => onToggle && onToggle('data_ids', id)}
         />
         <CollapsibleListSection
           title="gmm_ids"
+          category="gmm_ids"
           items={ids.gmm_ids ?? []}
+          selected={selected.gmm_ids ?? []}
           count={ids.gmm_ids?.length ?? 0}
           loading={loading}
           error={error}
+          onToggle={(cat, id) => onToggle && onToggle('gmm_ids', id)}
         />
         <CollapsibleListSection
           title="mdp_ids"
+          category="mdp_ids"
           items={ids.mdp_ids ?? []}
+          selected={selected.mdp_ids ?? []}
           count={ids.mdp_ids?.length ?? 0}
           loading={loading}
           error={error}
+          onToggle={(cat, id) => onToggle && onToggle('mdp_ids', id)}
         />
       </div>
     </aside>
