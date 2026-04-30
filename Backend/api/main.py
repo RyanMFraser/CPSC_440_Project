@@ -242,6 +242,7 @@ def get_mdp_policy(request: MDPPolicyRequest) -> MDPPolicyResponse:
         mdp_id=request.mdp_id,
         policy=policy,
         state={"x": state[0], "y": state[1]},
+        club_ids=mdp.get_club_ids(),
     )
 
 
@@ -264,4 +265,5 @@ def get_mdp_value(request: MDPValueRequest) -> MDPValueResponse:
         mdp_id=request.mdp_id,
         value=value,
         state={"x": state[0], "y": state[1]},
+        club_ids=mdp.get_club_ids(),
     )

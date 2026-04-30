@@ -94,6 +94,7 @@ class MDPPolicyResponse(BaseModel):
     mdp_id: str
     policy: Optional[dict] = None
     state: dict  
+    club_ids: Optional[list[str]] = None
 
 
 class MDPValueRequest(BaseModel):
@@ -114,3 +115,4 @@ class MDPValueResponse(BaseModel):
     mdp_id: str
     value: Optional[float] = None
     state: dict
+    club_ids: Optional[list[str]] = None

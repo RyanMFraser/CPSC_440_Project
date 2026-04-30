@@ -103,6 +103,9 @@ class GolfHoleMDP:
             except FileNotFoundError:
                 raise FileNotFoundError(f"Club model not found for id: {club_id}")
         return clubs
+
+    def get_club_ids(self):
+        return self.club_ids
     
     def _snap_to_grid(self, x, y):
         gx = round((x - self.x_min) / self.grid_step) * self.grid_step + self.x_min

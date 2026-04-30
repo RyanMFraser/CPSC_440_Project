@@ -2,6 +2,7 @@ import React from 'react'
 import CSVUploader from './CSVUploader'
 import GmmFitPanel from './GmmFitPanel'
 import GmmGallery from './GmmGallery'
+import MdpPolicyPanel from './MdpPolicyPanel'
 
 type IdPayload = {
   data_ids?: string[]
@@ -23,6 +24,10 @@ const FrontPage: React.FC<{ selected: IdPayload; onFitComplete?: () => void }> =
         
         <div style={{ marginTop: 12 }}>
           <GmmGallery gmmIds={selected?.gmm_ids ?? []} />
+        </div>
+
+        <div style={{ marginTop: 12 }}>
+          <MdpPolicyPanel mdpIds={selected?.mdp_ids ?? []} />
         </div>
       </div>
     </div>
