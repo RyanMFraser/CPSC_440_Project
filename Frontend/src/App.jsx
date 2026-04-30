@@ -8,6 +8,7 @@ import './App.css'
 function App() {
   const [backendStatus, setBackendStatus] = useState('checking')
   const [error, setError] = useState(null)
+  const [idsRefreshKey, setIdsRefreshKey] = useState(0)
 
   // Check if backend is running on component mount
   useEffect(() => {
@@ -40,6 +41,10 @@ function App() {
     })
   }
 
+  const refreshSidebarIds = () => {
+    setIdsRefreshKey((prev) => prev + 1)
+  }
+
   return (
     <div className="app-container">
       <header>
@@ -53,11 +58,11 @@ function App() {
       </header>
 
       <main className="app-main">
-        <ModelSidebar selected={selected} onToggle={toggleSelected} />
+        <ModelSidebar selected={selected} onToggle={toggleSelected} refreshKey={idsRefreshKey} />
 
         <div className="app-main__content">
 
-          <FrontPage selected={selected} />
+          <FrontPage selected={selected} onFitComplete={refreshSidebarIds} />
 
         </div>
       </main>

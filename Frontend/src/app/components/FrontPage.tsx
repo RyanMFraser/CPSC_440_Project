@@ -1,5 +1,6 @@
 import React from 'react'
 import CSVUploader from './CSVUploader'
+import GmmFitPanel from './GmmFitPanel'
 import GmmGallery from './GmmGallery'
 
 type IdPayload = {
@@ -8,11 +9,14 @@ type IdPayload = {
   mdp_ids?: string[]
 }
 
-const FrontPage: React.FC<{ selected: IdPayload }> = ({ selected }) => {
+const FrontPage: React.FC<{ selected: IdPayload; onFitComplete?: () => void }> = ({ selected, onFitComplete }) => {
   return (
     <div className="frontpage-grid">
       <div className="frontpage__left">
         <CSVUploader />
+        <div style={{ marginTop: 12 }}>
+          <GmmFitPanel dataIds={selected?.data_ids ?? []} onFitComplete={onFitComplete} />
+        </div>
       </div>
 
       <div className="frontpage__right">

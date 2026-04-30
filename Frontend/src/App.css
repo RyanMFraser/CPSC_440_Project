@@ -387,8 +387,115 @@ main {
   width: 100%;
 }
 
+.gmm-gallery__sample-controls {
+  display: grid;
+  grid-template-columns: auto minmax(100px, 140px) auto 1fr;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.gmm-gallery__sample-label {
+  color: #334155;
+  font-weight: 600;
+}
+
+.gmm-gallery__sample-input {
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.95rem;
+  color: #0f172a;
+  background: #ffffff;
+}
+
+.gmm-gallery__sample-input:focus {
+  outline: none;
+  border-color: rgba(45, 80, 22, 0.7);
+  box-shadow: 0 0 0 3px rgba(45, 80, 22, 0.12);
+}
+
+.gmm-gallery__sample-count-note {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.gmm-gallery__sample-error {
+  margin-top: 0.35rem;
+  color: #b91c1c;
+}
+
 .dispersion-heatmap {
   width: 100%;
+}
+
+.gmm-fit-panel {
+  background: white;
+  border-radius: 12px;
+  padding: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.08);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.gmm-fit-panel__controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.gmm-fit-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.gmm-fit-panel__selected {
+  color: #475569;
+}
+
+.gmm-fit-panel__error {
+  color: #b91c1c;
+}
+
+.gmm-fit-panel__results {
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 10px;
+  padding: 0.8rem;
+}
+
+.gmm-fit-panel__results-title {
+  color: #243b53;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.gmm-fit-panel__result-row {
+  margin-bottom: 0.6rem;
+}
+
+.gmm-fit-panel__result-row:last-child {
+  margin-bottom: 0;
+}
+
+.gmm-fit-panel__chips {
+  margin-top: 0.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.gmm-fit-panel__chip {
+  background: #eaf7ec;
+  border: 1px solid rgba(34, 139, 34, 0.35);
+  color: #1f5133;
+  border-radius: 999px;
+  padding: 0.18rem 0.55rem;
+  font-size: 0.86rem;
 }
 
 @media (max-width: 900px) {
@@ -406,6 +513,10 @@ main {
     flex-direction: column;
   }
 
+  .gmm-fit-panel__controls {
+    grid-template-columns: 1fr;
+  }
+
   .gmm-gallery__carousel {
     grid-template-columns: 1fr;
   }
@@ -417,6 +528,11 @@ main {
   .gmm-gallery__caption {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .gmm-gallery__sample-controls {
+    grid-template-columns: 1fr;
+    align-items: stretch;
   }
 }
 

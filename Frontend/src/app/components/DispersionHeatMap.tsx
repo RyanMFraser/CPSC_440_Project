@@ -6,11 +6,13 @@ type DispersionHeatMapProps = {
 	weights: number[]
 	means: number[][]
 	covariances: number[][][]
+	samples?: number[][]
 	height?: number
 }
 
-const X_MIN = -50
-const X_MAX = 50
+// Match the full plotting domain so the heatmap covers the entire visible x-range.
+const X_MIN = -100
+const X_MAX = 100
 const Y_MIN = 0
 const Y_MAX = 250
 
@@ -71,13 +73,22 @@ function buildDensityGrid(weights: number[], means: number[][], covariances: num
 	return { xValues, yValues, zValues, logZ, minLog, maxLog }
 }
 
-const DispersionHeatMap = ({ gmmId, weights, means, covariances, height = 520 }: DispersionHeatMapProps) => {
+const DispersionHeatMap = ({
+	gmmId,
+	weights,
+	means,
+	covariances,
+	samples = [],
+	height = 520,
+}: DispersionHeatMapProps) => {
 	const { xValues, yValues, logZ, minLog, maxLog } = useMemo(
 		() => buildDensityGrid(weights, means, covariances),
 		[weights, means, covariances],
 	)
 
 	const contourStep = Math.max((maxLog - minLog) / 10, 0.1)
+	const sampleX = samples.map((point) => point[0])
+	const sampleY = samples.map((point) => point[1])
 
 	return (
 		<div className="dispersion-heatmap">
@@ -103,7 +114,7 @@ const DispersionHeatMap = ({ gmmId, weights, means, covariances, height = 520 }:
 						z: logZ,
 						contours: {
 							coloring: 'none',
-							showlabels: true,
+							showlabels: false,
 							start: minLog,
 							end: maxLog,
 							size: contourStep,
@@ -114,6 +125,22 @@ const DispersionHeatMap = ({ gmmId, weights, means, covariances, height = 520 }:
 						},
 						hoverinfo: 'skip',
 						showscale: false,
+					},
+					{
+						type: 'scatter',
+						mode: 'markers',
+						x: sampleX,
+						y: sampleY,
+						name: 'Samples',
+						marker: {
+							size: 7,
+							color: 'rgba(244, 114, 22, 0.92)',
+							line: {
+								color: 'rgba(0, 0, 0, 0.75)',
+								width: 0.8,
+							},
+						},
+						hovertemplate: 'Sample<br>X=%{x:.1f}<br>Y=%{y:.1f}<extra></extra>',
 					},
 				]}
 				layout={{

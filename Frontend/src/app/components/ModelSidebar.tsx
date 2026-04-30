@@ -11,9 +11,10 @@ type IdPayload = {
 type ModelSidebarProps = {
   selected?: IdPayload
   onToggle?: (category: keyof IdPayload, id: string) => void
+  refreshKey?: number
 }
 
-function ModelSidebar({ selected = { data_ids: [], gmm_ids: [], mdp_ids: [] }, onToggle }: ModelSidebarProps) {
+function ModelSidebar({ selected = { data_ids: [], gmm_ids: [], mdp_ids: [] }, onToggle, refreshKey = 0 }: ModelSidebarProps) {
   const [ids, setIds] = useState<IdPayload>({ data_ids: [], gmm_ids: [], mdp_ids: [] })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -67,7 +68,7 @@ function ModelSidebar({ selected = { data_ids: [], gmm_ids: [], mdp_ids: [] }, o
     return () => {
       isMounted = false
     }
-  }, [])
+  }, [refreshKey])
 
   return (
     <aside className="model-sidebar">
