@@ -424,6 +424,8 @@ class GolfHoleMDP:
         self.grid_step = float(payload["grid_step"])
         self.club_ids = list(payload["club_ids"])
         self.num_clubs = len(self.club_ids)
+        # Rehydrate club models so simulation methods can sample shots after load.
+        self.clubs = self.setup_clubs(self.club_ids)
 
         loaded_value_function = {}
         for row in payload["value_function"]:
@@ -466,3 +468,26 @@ class GolfHoleMDP:
         if self.value_function is None:
             raise ValueError("Value function not available. Solve the MDP first.")
         return self.value_function.get(state, None)
+
+    def simulate_score(self, start_state, max_strokes = 30):
+        strokes = 0
+        current_state = (float(start_state[0]), float(start_state[1]))
+        
+        for stroke in range(max_strokes):
+            if self.is_terminal(current_state):
+                return strokes
+
+            action = self.get_policy_for_state(current_state)
+            if action is None:
+                # No policy action from this state, so stop the rollout.
+                return strokes
+            
+            # Reuse existing transition logic with one Monte Carlo sample.
+            _, next_state_dist = self.simulate_shot(current_state, action, num_samples=1)
+            if not next_state_dist:
+                return strokes
+
+            current_state = next(iter(next_state_dist.keys()))
+            strokes += 1
+        
+        return strokes

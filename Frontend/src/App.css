@@ -563,6 +563,64 @@ main {
   color: #b91c1c;
 }
 
+.mdp-score-distribution-panel {
+  background: white;
+  border-radius: 12px;
+  padding: 1rem;
+  border: 1px solid rgba(148, 163, 184, 0.08);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.mdp-score-distribution-panel__controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.mdp-score-distribution-panel__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.mdp-score-distribution-panel__selected {
+  color: #475569;
+}
+
+.mdp-score-distribution-panel__error {
+  color: #b91c1c;
+}
+
+.mdp-score-distribution-panel__chart-card {
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 10px;
+  padding: 0.8rem;
+}
+
+.mdp-score-distribution-panel__chart-meta {
+  margin-bottom: 0.6rem;
+}
+
+.mdp-score-distribution-panel__chart-title {
+  color: #243b53;
+  font-weight: 700;
+}
+
+.mdp-score-distribution-panel__chart-subtitle {
+  color: #64748b;
+  font-size: 0.92rem;
+  margin-top: 0.2rem;
+}
+
+.mdp-score-distribution-panel__empty {
+  color: #64748b;
+}
+
 @media (max-width: 900px) {
   .frontpage-grid {
     grid-template-columns: 1fr;
@@ -583,6 +641,10 @@ main {
   }
 
   .mdp-policy-panel__controls {
+    grid-template-columns: 1fr;
+  }
+
+  .mdp-score-distribution-panel__controls {
     grid-template-columns: 1fr;
   }
 

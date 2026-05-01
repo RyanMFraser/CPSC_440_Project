@@ -24,6 +24,8 @@ from .schemas import (
     MDPPolicyResponse,
     MDPValueRequest,
     MDPValueResponse,
+    MDPScoreDistributionRequest,
+    MDPScoreDistributionResponse,
 )
 
 
@@ -266,4 +268,40 @@ def get_mdp_value(request: MDPValueRequest) -> MDPValueResponse:
         value=value,
         state={"x": state[0], "y": state[1]},
         club_ids=mdp.get_club_ids(),
+    )
+
+@app.post("/mdp/score_distribution", response_model=MDPScoreDistributionResponse)
+def get_mdp_score_distribution(request: MDPScoreDistributionRequest) -> MDPScoreDistributionResponse:
+    if "x" not in request.state or "y" not in request.state:
+        raise HTTPException(status_code=400, detail="state must include both 'x' and 'y'.")
+
+    state = (float(request.state["x"]), float(request.state["y"]))
+    n_simulations = 1000
+
+    mdp = GolfHoleMDP(_build_hole(), [], grid_step=10, device="cpu")
+    try:
+        mdp.load(request.mdp_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"MDP not found: {request.mdp_id}")
+
+    try:
+        scores = [int(mdp.simulate_score(state)) for _ in range(n_simulations)]
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Score simulation failed: {e}")
+
+    max_score = max(scores) if scores else 0
+    score_counts = [0] * (max_score + 1)
+    for score in scores:
+        if score >= 0:
+            score_counts[score] += 1
+
+    distribution = [count / n_simulations for count in score_counts]
+
+    return MDPScoreDistributionResponse(
+        mdp_id=request.mdp_id,
+        state={"x": state[0], "y": state[1]},
+        n_simulations=n_simulations,
+        distribution=distribution,
     )
