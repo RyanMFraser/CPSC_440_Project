@@ -171,7 +171,7 @@ def solve_mdp(request: MDPSolveRequest) -> MDPSolveResponse:
     hole = _build_hole()
 
     try:
-        mdp = GolfHoleMDP(hole, club_models, grid_step=10, device="cpu")
+        mdp = GolfHoleMDP(hole, club_models, grid_step=request.grid_step, device="cpu")
         mdp.solve(num_samples=100, max_iterations=50, gamma=0.98)
         mdp.save(request.mdp_id, overwrite=True)
     except Exception as e:

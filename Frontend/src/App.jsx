@@ -62,7 +62,7 @@ function App() {
 
         <div className="app-main__content">
 
-          <FrontPage selected={selected} onFitComplete={refreshSidebarIds} />
+          <FrontPage selected={selected} onFitComplete={refreshSidebarIds} onSolveComplete={refreshSidebarIds} />
 
         </div>
       </main>
