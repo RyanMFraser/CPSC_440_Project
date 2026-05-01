@@ -62,7 +62,7 @@ main {
   top: 1rem;
   max-height: calc(100vh - 2rem);
   overflow-y: auto;
-  background: white;
+  background: #f2e9a1;
   border-radius: 16px;
   box-shadow: 0 10px 30px rgba(31, 41, 55, 0.08);
   border: 1px solid rgba(102, 126, 234, 0.12);
@@ -97,7 +97,7 @@ main {
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 14px;
   overflow: hidden;
-  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+  background: linear-gradient(180deg, #67b040 0%, #98c84c 100%);
 }
 
 .sidebar-section__header {
@@ -119,15 +119,15 @@ main {
 }
 
 .sidebar-section__title {
-  text-transform: lowercase;
   letter-spacing: 0.02em;
+  color: #ffffff;
 }
 
 .sidebar-section__meta {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  color: #64748b;
+  color: #ffffff;
   font-weight: 600;
 }
 
@@ -154,7 +154,7 @@ main {
 }
 
 .sidebar-section__item {
-  background: #eef4ff;
+  background: #cce06c;
   border: 1px solid #dbeafe;
   border-radius: 10px;
   padding: 0.6rem 0.75rem;
@@ -792,7 +792,7 @@ main {
 }
 
 .sidebar-section__item.is-selected {
-  background: #dff6e1;
+  background: #f5c400;
   border-color: #bfe7b9;
 }
 
@@ -804,6 +804,7 @@ main {
   padding: 0.4rem 0.6rem;
   font-size: 0.95rem;
   cursor: pointer;
+  color: #ffffff
 }
 
 .sidebar-section__item-button:focus {

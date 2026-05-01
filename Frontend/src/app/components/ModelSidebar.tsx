@@ -79,7 +79,7 @@ function ModelSidebar({ selected = { data_ids: [], gmm_ids: [], mdp_ids: [] }, o
 
       <div className="model-sidebar__sections">
         <CollapsibleListSection
-          title="data_ids"
+          title="Datasets"
           category="data_ids"
           items={ids.data_ids ?? []}
           selected={selected.data_ids ?? []}
@@ -89,7 +89,7 @@ function ModelSidebar({ selected = { data_ids: [], gmm_ids: [], mdp_ids: [] }, o
           onToggle={(cat, id) => onToggle && onToggle('data_ids', id)}
         />
         <CollapsibleListSection
-          title="gmm_ids"
+          title="Fitted Clubs"
           category="gmm_ids"
           items={ids.gmm_ids ?? []}
           selected={selected.gmm_ids ?? []}
@@ -99,7 +99,7 @@ function ModelSidebar({ selected = { data_ids: [], gmm_ids: [], mdp_ids: [] }, o
           onToggle={(cat, id) => onToggle && onToggle('gmm_ids', id)}
         />
         <CollapsibleListSection
-          title="mdp_ids"
+          title="Solved Holes"
           category="mdp_ids"
           items={ids.mdp_ids ?? []}
           selected={selected.mdp_ids ?? []}
