@@ -74,7 +74,7 @@ const GmmFitPanel: React.FC<GmmFitPanelProps> = ({ dataIds, onFitComplete }) => 
     <div className="gmm-fit-panel">
       <SectionHeader
         mainText="Fit Gaussian Mixture Models"
-        subText="Use selected data_ids to fit GMMs. New gmm_ids will appear in the sidebar after fitting."
+        subText="Select datasets from the sidebar, select component options and fit. Fitted clubs will appear in the side bar."
       />
 
       <div className="gmm-fit-panel__controls">

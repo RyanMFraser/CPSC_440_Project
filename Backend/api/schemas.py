@@ -116,3 +116,23 @@ class MDPValueResponse(BaseModel):
     value: Optional[float] = None
     state: dict
     club_ids: Optional[list[str]] = None
+
+
+class MDPScoreDistributionRequest(BaseModel):
+    mdp_id: str = Field(
+        ...,
+        min_length=1,
+        description="ID of the MDP solution used to simulate score outcomes",
+    )
+    state: dict = Field(
+        default_factory=lambda: {"x": 0.0, "y": 25.0},
+        description="Starting position on the hole. Must include numeric 'x' and 'y'.",
+        examples=[{"x": 0.0, "y": 25.0}],
+    )
+
+
+class MDPScoreDistributionResponse(BaseModel):
+    mdp_id: str
+    state: dict
+    n_simulations: int
+    distribution: list[float]

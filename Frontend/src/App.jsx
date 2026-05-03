@@ -48,11 +48,11 @@ function App() {
   return (
     <div className="app-container">
       <header>
-        <h1>Golf Shot Analysis Frontend</h1>
+        <h1>Golf Performance and Optimality Evaluator</h1>
         <p>Backend Status: <strong style={{ color: backendStatus === 'connected' ? 'green' : 'red' }}>
-          {backendStatus === 'checking' && '⏳ Checking...'}
-          {backendStatus === 'connected' && '✅ Connected'}
-          {backendStatus === 'disconnected' && '❌ Disconnected'}
+          {backendStatus === 'checking' && 'Checking...'}
+          {backendStatus === 'connected' && 'Connected'}
+          {backendStatus === 'disconnected' && 'Disconnected'}
         </strong></p>
         {error && <p style={{ color: 'red', fontSize: '0.9em' }}>Error: {error}</p>}
       </header>
@@ -62,7 +62,7 @@ function App() {
 
         <div className="app-main__content">
 
-          <FrontPage selected={selected} onFitComplete={refreshSidebarIds} />
+          <FrontPage selected={selected} onFitComplete={refreshSidebarIds} onSolveComplete={refreshSidebarIds} />
 
         </div>
       </main>

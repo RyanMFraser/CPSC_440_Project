@@ -55,7 +55,7 @@ const MdpPolicyPanel = ({ mdpIds }: MdpPolicyPanelProps) => {
 
 	const handleGetPolicy = async () => {
 		if (!mdpIds || mdpIds.length === 0) {
-			setError('No mdp_ids selected. Select one or more mdp_ids from the sidebar.')
+			setError('No mdp_ids selected. Select one or more solved holes from the sidebar.')
 			return
 		}
 
@@ -122,7 +122,7 @@ const MdpPolicyPanel = ({ mdpIds }: MdpPolicyPanelProps) => {
 		<div className="mdp-policy-panel">
 			<SectionHeader
 				mainText="MDP Policy Lookup"
-				subText="Select one or more mdp_ids, enter a hole location, then fetch expected score, optimal club, and target per model."
+				subText="Select one or more solved holes, enter a hole location, then fetch expected score, optimal club, and target per model."
 			/>
 
 			<div className="mdp-policy-panel__controls">
@@ -153,7 +153,7 @@ const MdpPolicyPanel = ({ mdpIds }: MdpPolicyPanelProps) => {
 				<GreenButton onClick={handleGetPolicy} disabled={loading || selectedCount === 0}>
 					{loading ? 'Loading...' : 'Get Policy'}
 				</GreenButton>
-				<div className="mdp-policy-panel__selected">{selectedCount} mdp_ids selected</div>
+				<div className="mdp-policy-panel__selected">{selectedCount} solved holes selected</div>
 			</div>
 
 			{error ? <div className="mdp-policy-panel__error">{error}</div> : null}
