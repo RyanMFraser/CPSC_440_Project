@@ -19,14 +19,16 @@ const FrontPage: React.FC<{ selected: IdPayload; onFitComplete?: () => void; onS
 }) => {
   return (
     <div className="frontpage-grid">
-      <div className="frontpage__left">
-        <CSVUploader />
-        <div style={{ marginTop: 12 }}>
-          <GmmFitPanel dataIds={selected?.data_ids ?? []} onFitComplete={onFitComplete} />
-        </div>
-      </div>
 
       <div className="frontpage__right">
+
+        <div style={{ marginTop: 12 }}>
+          <CSVUploader />
+        </div>
+
+        <div style={{ marginTop: 12 }}>
+          <GmmFitPanel dataIds={selected?.data_ids ?? []} onFitComplete={onFitComplete} />
+        </div>  
         
         <div style={{ marginTop: 12 }}>
           <GmmGallery gmmIds={selected?.gmm_ids ?? []} />

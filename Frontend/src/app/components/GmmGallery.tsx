@@ -116,7 +116,7 @@ const GmmGallery: React.FC<{ gmmIds?: string[] }> = ({ gmmIds = [] }) => {
     <div className="gmm-gallery">
       <SectionHeader
         mainText="GMM Heatmap Gallery"
-        subText="Select one or more GMM IDs on the left, then click Generate Heatmaps to build log-scaled density plots and browse through them here."
+        subText="Select one or more fitted clubs from the sidebar, then click Generate Heatmaps to build log-scaled density plots and browse through them."
       />
       <div className="gmm-gallery__controls">
         <GreenButton onClick={generate} disabled={loading || !gmmIds || gmmIds.length === 0}>

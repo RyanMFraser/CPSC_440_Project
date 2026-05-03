@@ -95,7 +95,7 @@ const MdpSolvePanel = ({ gmmIds, onSolveComplete }: MdpSolvePanelProps) => {
 		<div className="mdp-solve-panel">
 			<SectionHeader
 				mainText="Solve MDP"
-				subText="Select a group of gmm_ids, provide an mdp_id and grid step, then execute to build and save the MDP."
+				subText="Select a group of fitted clubs, provide an solved hole name and grid step, then execute to build and save the hole."
 			/>
 
 			<div className="mdp-solve-panel__controls">
@@ -106,7 +106,7 @@ const MdpSolvePanel = ({ gmmIds, onSolveComplete }: MdpSolvePanelProps) => {
 						type="text"
 						value={mdpId}
 						onChange={(e) => setMdpId(e.target.value)}
-						placeholder="Enter mdp id"
+						placeholder="Enter name for hole to be saved under"
 					/>
 				</label>
 
@@ -126,7 +126,7 @@ const MdpSolvePanel = ({ gmmIds, onSolveComplete }: MdpSolvePanelProps) => {
 			</div>
 
 			<div className="mdp-solve-panel__selection">
-				<div className="mdp-solve-panel__selection-label">Selected gmm_ids</div>
+				<div className="mdp-solve-panel__selection-label">Selected fitted clubs</div>
 				<div className="mdp-solve-panel__chips">
 					{gmmIds.length > 0 ? (
 						gmmIds.map((id) => (
@@ -135,7 +135,7 @@ const MdpSolvePanel = ({ gmmIds, onSolveComplete }: MdpSolvePanelProps) => {
 							</span>
 						))
 					) : (
-						<span className="mdp-solve-panel__empty-selection">No gmm_ids selected.</span>
+						<span className="mdp-solve-panel__empty-selection">No fitted clubs selected.</span>
 					)}
 				</div>
 			</div>
@@ -144,7 +144,7 @@ const MdpSolvePanel = ({ gmmIds, onSolveComplete }: MdpSolvePanelProps) => {
 				<GreenButton onClick={handleSolve} disabled={loading || selectedCount === 0}>
 					{loading ? 'Executing...' : 'Execute'}
 				</GreenButton>
-				<div className="mdp-solve-panel__selected-count">{selectedCount} gmm_ids selected</div>
+				<div className="mdp-solve-panel__selected-count">{selectedCount} fitted clubs selected</div>
 			</div>
 
 			<div className="mdp-solve-panel__progress-wrap" aria-hidden={!loading && progress === 0 && !result}>

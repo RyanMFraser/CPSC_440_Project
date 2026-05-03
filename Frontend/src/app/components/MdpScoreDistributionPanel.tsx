@@ -77,7 +77,7 @@ const MdpScoreDistributionPanel = ({ mdpIds }: MdpScoreDistributionPanelProps) =
 		<div className="mdp-score-distribution-panel">
 			<SectionHeader
 				mainText="MDP Score Distribution"
-				subText="Select an mdp_id, enter a starting position, then click Execute to sample 1000 rollouts and plot the shot-count distribution."
+				subText="Select a solved hole, enter a starting position, then click Execute to sample 1000 rollouts and plot the shot-count distribution."
 			/>
 
 			<div className="mdp-score-distribution-panel__controls">
@@ -109,7 +109,7 @@ const MdpScoreDistributionPanel = ({ mdpIds }: MdpScoreDistributionPanelProps) =
 					{loading ? 'Executing...' : 'Execute'}
 				</GreenButton>
 				<div className="mdp-score-distribution-panel__selected">
-					{activeMdpId ? `Active mdp_id: ${activeMdpId}` : 'No mdp_id selected'}
+					{activeMdpId ? `Active mdp_id: ${activeMdpId}` : 'No solved hole selected'}
 				</div>
 			</div>
 
