@@ -1,64 +1,95 @@
-# CPSC_440_Project
-Project Repository for UBC CPSC 440 Course
+# Golf Shot Dispersion & Strategy Optimization
 
-## API Scaffold
+A full-stack application that models golf shot dispersion patterns and computes optimal hole strategies using Gaussian Mixture Models and Markov Decision Processes.
 
-This repository now includes a FastAPI scaffold in `api/`.
+---
 
-### Install dependencies
+## Overview
 
-```bash
-pip install -r requirements.txt
+This project combines **shot dispersion modeling** with **decision optimization** to analyze golfer performance and recommend optimal strategies for completing golf holes.
+
+**Key capabilities:**
+- Fit Gaussian Mixture Models to real golf shot data
+- Build Markov Decision Process models of hole layouts
+- Solve for optimal shot strategies using value iteration
+- Interactive web interface for visualization and analysis
+
+For detailed methodology and results, see [Golf_Dispersion_Report.pdf](Golf_Dispersion_Report.pdf).
+
+---
+
+## Architecture
+
+```
+Frontend (React + Vite)
+         ↓
+    FastAPI Backend
+         ↓
+   Core Models (GMM, MDP)
+         ↓
+   Golf Hole Simulation
 ```
 
-### Run the API
+---
+
+## Quick Start
+
+### Backend Setup
 
 ```bash
+cd Backend
+pip install -r requirements.txt
 uvicorn api.main:app --reload
 ```
 
-### Available endpoints
+The API will be available at `http://localhost:8000`
 
-- `GET /health`
-- `POST /gmm/fit`
-- `POST /mdp/solve`
+**API Endpoints:**
+- `GET /health` — Health check
+- `POST /gmm/fit` — Fit Gaussian Mixture Model to shot data
+- `POST /mdp/solve` — Solve optimal strategy for a hole
+- `POST /mdp/policy` — Get recommended action from a position
+- `POST /mdp/score_distribution` — Simulate score outcomes
 
-### Example request for `POST /gmm/fit`
+### Frontend Setup
 
-```json
-{
-	"name": "Ryan",
-	"club": "I7",
-	"max_components": 10,
-	"num_components": 1,
-	"sample_size": 100
-}
+```bash
+cd Frontend
+npm install
+npm run dev
 ```
 
-The endpoint uses the existing preprocessing and GMM model flow:
+The frontend will be available at `http://localhost:5173`
 
-- `Utils/preprocess.py` to load and filter data
-- `Models/GaussianMixture.py` to fit and sample
+---
 
-### Example request for `POST /mdp/solve`
+## Tech Stack
 
-```json
-{
-	"name": "Ryan",
-	"clubs": ["I7"],
-	"hole_type": "simple",
-	"gmm_components": 1,
-	"grid_step": 20,
-	"num_samples": 100,
-	"max_iterations": 50,
-	"gamma": 0.99,
-	"epsilon": 0.000001,
-	"device": null
-}
-```
+| Component | Technology |
+|-----------|-----------|
+| **Backend** | FastAPI, PyTorch, NumPy |
+| **Frontend** | React, Vite, Plotly.js |
+| **ML Models** | Scikit-learn (GMM), PyTorch (GPU acceleration) |
+| **Simulation** | Custom golf hole engine |
 
-This endpoint uses existing project modules:
+---
 
-- `Models/GaussianMixture.py` to fit one GMM per requested club
-- `Models/MDP.py` to build transitions and run value iteration
-- `Simulation/golfhole.py` and `Simulation/holecomponent.py` to construct the selected hole
+## Core Modules
+
+- **`Models/GaussianMixture.py`** — Shot dispersion modeling
+- **`Models/MDP.py`** — Hole strategy optimization via value iteration
+- **`Simulation/`** — Golf hole geometry and shot physics
+- **`api/`** — REST API endpoints
+- **`Frontend/src/`** — React UI components
+
+---
+
+## Learn More
+
+See **[Golf_Dispersion_Report.pdf](Golf_Dispersion_Report.pdf)** for:
+- Mathematical formulation
+- Experimental methodology
+- Performance analysis
+- Detailed results
+
+---
