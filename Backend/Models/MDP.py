@@ -54,6 +54,11 @@ class GolfHoleMDP:
         self.pin_location = np.array(hole.pin_location, dtype=np.float32)
         self.tee_location = np.array(hole.tee_location, dtype=np.float32)
         
+        # Cache components by type for fast lookup in simulate_shot
+        self.tree_components = [c for c in hole.components if getattr(c, 'type', None) == 'tree']
+        self.bunker_components = [c for c in hole.components if getattr(c, 'type', None) == 'bunker']
+        self.water_components = [c for c in hole.components if getattr(c, 'type', None) == 'water']
+        
         self.x_min = -hole.x / 2
         self.x_max = hole.x / 2
         self.y_min = 0
@@ -70,19 +75,26 @@ class GolfHoleMDP:
         
         state_grid_x = np.arange(self.x_min, self.x_max + 1e-9, self.grid_step)
         state_grid_y = np.arange(self.y_min, self.y_max + 1e-9, self.grid_step)
-        
+
         self.grid_x = state_grid_x
         self.grid_y = state_grid_y
-        
-        states_list = [(float(x), float(y)) for x in state_grid_x for y in state_grid_y]
+
+        states_list = []
+        for x in state_grid_x:
+            for y in state_grid_y:
+                candidate_state = (float(x), float(y))
+                if self._is_blocked_state(candidate_state):
+                    continue
+                states_list.append(candidate_state)
+
         self.states = states_list
         self.num_states = len(states_list)
-        
+
         self.state_to_idx = {state: i for i, state in enumerate(states_list)}
-        
+
         self.states_tensor = torch.tensor(
-            [[s[0], s[1]] for s in states_list], 
-            dtype=torch.float32, 
+            [[s[0], s[1]] for s in states_list],
+            dtype=torch.float32,
             device=self.device
         )
         self.pin_tensor = torch.tensor(self.pin_location, dtype=torch.float32, device=self.device)
@@ -106,6 +118,18 @@ class GolfHoleMDP:
 
     def get_club_ids(self):
         return self.club_ids
+
+    def _is_blocked_state(self, state):
+        """Check if state is blocked by trees or water (but never block the pin!)"""
+        x, y = state[0], state[1]
+        
+        # ✓ NEVER block the pin location
+        if np.linalg.norm(np.array([x, y]) - self.pin_location) <= self.terminal_radius:
+            return False
+        
+        return any(comp.contains(x, y) for comp in self.tree_components) or any(
+            comp.contains(x, y) for comp in self.water_components
+        )
     
     def _snap_to_grid(self, x, y):
         gx = round((x - self.x_min) / self.grid_step) * self.grid_step + self.x_min
@@ -117,7 +141,8 @@ class GolfHoleMDP:
     
     def is_terminal(self, state):
         """Check if state is within terminal radius of pin."""
-        dist = np.linalg.norm(np.array(state) - self.pin_location)
+        coord = np.array([state[0], state[1]])
+        dist = np.linalg.norm(coord - self.pin_location)
         return dist <= self.terminal_radius
     
     def get_actions(self, state):
@@ -125,7 +150,10 @@ class GolfHoleMDP:
         Generate actions for a state.
         Returns list of (club_idx, target_x, target_y) tuples.
         """
-        x, y = state
+        x, y = state[0], state[1]
+
+        if self._is_blocked_state((x, y)):
+            return []
 
         if self.is_terminal(state):
             return []
@@ -161,7 +189,7 @@ class GolfHoleMDP:
         """
         Simulate a shot and return next state distribution.
         """
-        x_start, y_start = state
+        x_start, y_start = state[0], state[1]
         club_idx, target_x, target_y = action
         
         club = self.clubs[club_idx]
@@ -174,18 +202,13 @@ class GolfHoleMDP:
         else:
             target_dir = target_vec / target_dist
         
-        # Sample from GMM (returns tuple of (samples, labels))
         samples, _ = club.sample(n_samples=num_samples)
         
-        # Transform samples to world coordinates
-        # GMM samples are [lateral_offset, distance] in club's coordinate system
         perp_dir = np.array([-target_dir[1], target_dir[0]])
         
-        # Extract lateral and distance components
         laterals = samples[:, 0][:, np.newaxis]
         distances = samples[:, 1][:, np.newaxis]
         
-        # Compute landing positions
         start_pos = np.array([x_start, y_start])
         offsets = distances * target_dir + laterals * perp_dir
         
@@ -197,14 +220,35 @@ class GolfHoleMDP:
         for landing in landings:
             x_end, y_end = landing
             reward = -1
-            
-            if self._is_out_of_bounds(x_end, y_end):
-                next_state = (x_start, y_start)
-            elif np.linalg.norm(landing - self.pin_location) <= self.terminal_radius:
-                next_state = tuple(self.pin_location)
+
+            hit_tree = any(comp.intersects_segment(x_start, y_start, x_end, y_end) for comp in self.tree_components)
+
+            if hit_tree:
+                reward = -2
+                next_state = (float(x_start), float(y_start))
             else:
-                next_state = self._snap_to_grid(x_end, y_end)
-            
+                in_water = any(comp.contains(x_end, y_end) for comp in self.water_components)
+                if in_water:
+                    reward = -1
+                    next_state = (float(x_start), float(y_start))
+                else:
+                    if self._is_out_of_bounds(x_end, y_end):
+                        next_state = (float(x_start), float(y_start))
+                    elif np.linalg.norm(landing - self.pin_location) <= self.terminal_radius:
+                        # Snap pin location to the grid so it matches an existing state
+                        next_state = self._snap_to_grid(float(self.pin_location[0]), float(self.pin_location[1]))
+                    else:
+                        snapped = self._snap_to_grid(x_end, y_end)
+                        
+                        # ✓ CHECK IF SNAPPED STATE IS BLOCKED
+                        if self._is_blocked_state(snapped):
+                            # Ball rolled into trees/water after landing
+                            # Treat as penalty and return to start
+                            reward = -1
+                            next_state = (float(x_start), float(y_start))
+                        else:
+                            next_state = (snapped[0], snapped[1])
+
             total_reward += reward
             next_states[next_state] = next_states.get(next_state, 0) + 1
         
@@ -241,6 +285,11 @@ class GolfHoleMDP:
             actions = self.get_actions(state)
             actions_per_state.append(actions)
             
+            
+                
+        
+        
+
             for action_idx, action in enumerate(actions):
                 reward, next_dist = self.simulate_shot(state, action, num_samples)
                 
@@ -251,13 +300,24 @@ class GolfHoleMDP:
                     if next_state in self.state_to_idx:
                         next_indices.append(self.state_to_idx[next_state])
                         probs.append(prob)
+                    # ✓ ADD WARNING FOR DEBUGGING
+                    else:
+                        # This should now never happen with the fix above
+                        print(f"WARNING: next_state {next_state} not in state space (blocked?)")
+                
+                # ✓ ADD ASSERTION
+                if not next_indices:
+                    raise ValueError(
+                        f"No valid transitions from state {state} with action {action}. "
+                        f"All samples landed in blocked states or OOB."
+                    )
                 
                 rewards[(state_idx, action_idx)] = reward
                 transitions[(state_idx, action_idx)] = (
                     torch.tensor(next_indices, dtype=torch.long, device=self.device),
                     torch.tensor(probs, dtype=torch.float32, device=self.device)
                 )
-        
+
         print(f"Built transitions for {self.num_states} states")
         return actions_per_state, rewards, transitions
     
@@ -269,7 +329,10 @@ class GolfHoleMDP:
         max_iterations=100,
         gamma=0.99,
         epsilon=1e-6,
-        show_progress=True
+        show_progress=True,
+        debug=False,
+        debug_top_k=5,
+        debug_interval=1,
     ):
         """
         GPU-accelerated value iteration.
@@ -322,6 +385,31 @@ class GolfHoleMDP:
             if show_progress and tqdm and hasattr(iter_range, 'set_postfix'):
                 iter_range.set_postfix({'delta': f'{delta:.6f}'})
             
+            # Debugging: show top-K per-state changes and their Q-values
+            if debug and (iteration % debug_interval == 0):
+                per_state_delta = torch.abs(V - V_old).cpu().numpy()
+                # get top K indices with largest change
+                topk = list(reversed(per_state_delta.argsort()[-debug_top_k:]))
+                print(f"\n[Debug] Iter {iteration+1}: global delta={delta:.6e}; top {debug_top_k} state deltas:")
+                for idx in topk:
+                    s = self.states[idx]
+                    d_old = V_old[idx].item()
+                    d_new = V[idx].item()
+                    d_ch = per_state_delta[idx]
+                    # compute best Q-value for this state (for diagnostic)
+                    q_vals = []
+                    for a_idx in range(len(actions_per_state[idx])):
+                        r = rewards[(idx, a_idx)]
+                        next_indices, probs = transitions[(idx, a_idx)]
+                        next_vals = V_old[next_indices]
+                        exp_next = torch.sum(probs * next_vals).item()
+                        q_vals.append((r + gamma * exp_next, a_idx))
+                    if q_vals:
+                        best_q, best_a = max(q_vals, key=lambda x: x[0])
+                    else:
+                        best_q, best_a = None, None
+                    print(f"    state={s}, V_old={d_old:.6f}, V_new={d_new:.6f}, delta={d_ch:.6e}, best_q={best_q}, best_action_idx={best_a}")
+
             if delta < epsilon:
                 print(f"\nConverged after {iteration + 1} iterations")
                 break
@@ -354,7 +442,7 @@ class GolfHoleMDP:
         
         return value_function, policy
     
-    def solve(self, num_samples=100, max_iterations=100, gamma=0.99, epsilon=1e-6):
+    def solve(self, num_samples=100, max_iterations=100, gamma=0.99, epsilon=1e-6, debug=False, debug_top_k=5, debug_interval=1):
         """
         Complete solve: build transitions and run value iteration.
         
@@ -363,7 +451,8 @@ class GolfHoleMDP:
         """
         actions, rewards, transitions = self.build_transition_matrices(num_samples)
         value_function, policy = self.value_iteration_gpu(
-            actions, rewards, transitions, max_iterations, gamma, epsilon
+            actions, rewards, transitions, max_iterations, gamma, epsilon, show_progress=True,
+            debug=debug, debug_top_k=debug_top_k, debug_interval=debug_interval
         )
         self.value_function = value_function
         self.policy = policy
@@ -452,22 +541,34 @@ class GolfHoleMDP:
         return self
     
     def get_policy_for_state(self, state):
-        x, y = state
+        # Accept legacy 3-field states, but only use x/y.
+        x, y = state[0], state[1]
+        state_key = (float(x), float(y))
+
+        if self._is_blocked_state(state_key):
+            raise ValueError(f"State ({x}, {y}) is blocked by trees or water and cannot be played from.")
+
         if x % self.grid_step != 0 or y % self.grid_step != 0:
             raise ValueError(f"State ({x}, {y}) is not on the grid. Must be multiples of grid_step {self.grid_step}.")
-        
+
         if self.policy is None:
             raise ValueError("Policy not available. Solve the MDP first.")
-        return self.policy.get(state, None)
+        return self.policy.get(state_key, None)
 
     def get_expected_value_for_state(self, state):
-        x, y = state
+        # Accept legacy 3-field states, but only use x/y.
+        x, y = state[0], state[1]
+        state_key = (float(x), float(y))
+
+        if self._is_blocked_state(state_key):
+            raise ValueError(f"State ({x}, {y}) is blocked by trees or water and cannot be evaluated.")
+
         if x % self.grid_step != 0 or y % self.grid_step != 0:
             raise ValueError(f"State ({x}, {y}) is not on the grid. Must be multiples of grid_step {self.grid_step}.")
-        
+
         if self.value_function is None:
             raise ValueError("Value function not available. Solve the MDP first.")
-        return self.value_function.get(state, None)
+        return self.value_function.get(state_key, None)
 
     def simulate_score(self, start_state, max_strokes = 30):
         strokes = 0
